@@ -221,6 +221,10 @@ function sessionsHtml(ok) {
 const WEEKS = 26;
 const dayKey = (ms) => new Date(ms).toDateString();
 function calendarHtml(ok) {
+  // 一次游玩都没记到时（刚开始记录），整片空格子看起来像没加载出来，改成一句说明
+  if (!ok.some((r) => r.a.plays.length)) {
+    return `<div class="push-head"><b>出勤日历</b></div><div class="empty">还没有记录到游玩。书签只记「上一次运行之后」的游玩：下次打完歌运行一次书签，这里就会显示出勤的日子。</div>`;
+  }
   const days = new Map(); // dayKey → Map(game → 首数)
   ok.forEach((r) => r.a.plays.forEach((ms) => {
     const k = dayKey(ms);
