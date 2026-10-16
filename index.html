@@ -89,22 +89,29 @@
   .milestones { margin-top: 4px; }
 
   /* 出勤日历：26 列（周）× 7 行（周一〜周日） */
-  .cal, .cal-months { display: grid; grid-template-columns: repeat(26, minmax(0, 1fr)); gap: 2px; }
+  /* 列数（周数）由 app.js 设成 --weeks：手机 15 周、电脑 26 周 */
+  .cal, .cal-months { display: grid; grid-template-columns: repeat(var(--weeks, 26), minmax(0, 1fr)); gap: 3px; }
   .cal { grid-template-rows: repeat(7, auto); grid-auto-flow: column; margin-top: 2px; }
   .cal-months { margin-top: 10px; font-size: 11px; color: var(--muted); }
   .cal-months span { white-space: nowrap; overflow: visible; }
-  .cal i { display: block; aspect-ratio: 1; border-radius: 2px; background: var(--soft); cursor: pointer; }
+  /* 圆形格子：宽高相等靠 padding 撑高（不用 aspect-ratio，iOS 14 以前不支持，格子会变成 0 高度），再用 50% 圆角变成圆 */
+  .cal i { display: block; height: 0; padding-bottom: 100%; border-radius: 50%; background: var(--soft); cursor: pointer;
+    -webkit-tap-highlight-color: transparent; }
   .cal i.future { background: transparent; cursor: default; }
-  .cal i.sel { outline: 2px solid var(--ink); }
+  /* 选中的那天：外圈描边。outline 在旧版 Safari 上不跟着圆角走，所以用 box-shadow */
+  .cal i.sel { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--ink); }
   .cal-note { margin-top: 8px; min-height: 1.5em; }
   .cal-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
   .cal-legend span { display: inline-flex; align-items: center; gap: 4px; }
-  .cal-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .cal-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 
   /* 出勤记录 */
   ul.sessions li { display: block; }
   .s-games { display: flex; flex-wrap: wrap; gap: 2px 16px; margin-top: 2px; }
-  .sg { white-space: nowrap; }
+  .sg b, .nw { white-space: nowrap; }
+  /* 窄屏时标题和右边的统计分两行，不把标题挤断 */
+  .push-head { flex-wrap: wrap; }
+  .push-head > b { white-space: nowrap; }
   .sg .delta { margin-left: 2px; font-size: inherit; }
 
   footer { margin-top: 32px; font-size: 12px; color: var(--muted); }

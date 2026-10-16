@@ -156,7 +156,12 @@ function trendSvg(game, a) {
   const sameDay = (p, t) => new Date(p).toDateString() === new Date(t).toDateString();
   const dots = reached.map((m) => {
     const p = pts.filter((q) => q.ms <= m.ms || sameDay(q.ms, m.ms)).pop() || pts[0];
-    return `<circle cx="${X(p.ms).toFixed(1)}" cy="${Y(Math.min(m.value, p.r)).toFixed(1)}" r="4" fill="var(--card)" stroke="${game.color}" stroke-width="2" vector-effect="non-scaling-stroke"><title>${esc(fmt(m.value))}（${md(m.ms)}）</title></circle>`;
+    // 图是横向拉伸的（preserveAspectRatio="none"），<circle> 在手机上会被压扁成椭圆。
+    // 改用长度为 0 的线段 + 圆头：线宽按屏幕像素算（non-scaling-stroke），画出来一定是正圆
+    const at = `M${X(p.ms).toFixed(1)} ${Y(Math.min(m.value, p.r)).toFixed(1)}h0`;
+    return `<g><title>${esc(fmt(m.value))}（${md(m.ms)}）</title>` +
+      `<path d="${at}" stroke="${game.color}" stroke-width="10" stroke-linecap="round" vector-effect="non-scaling-stroke"/>` +
+      `<path d="${at}" stroke="var(--card)" stroke-width="5" stroke-linecap="round" vector-effect="non-scaling-stroke"/></g>`;
   }).join('');
   const shown = reached.slice(-6).reverse();
   const msText = reached.length
@@ -201,7 +206,7 @@ function sessionHtml(x) {
     const d = sessionDelta(r.a, x);
     return `<span class="sg"><b style="color:${r.game.color}">${esc(r.game.label)}</b> ${n} 首` +
       (pushed ? ` · 推分 ${pushed}` : '') + (fresh ? ` · 新打 ${fresh}` : '') +
-      (d != null ? ` · Rating ${fmtDelta(r.game, d)}` : '') + `</span>`;
+      (d != null ? ` · <span class="nw">Rating ${fmtDelta(r.game, d)}</span>` : '') + `</span>`;
   });
   return `<li><div class="s-date num">${t.getMonth() + 1}/${t.getDate()} ${WEEK[t.getDay()]}` +
     ` <span class="muted small">${hm(x.start)}–${hm(x.end)}</span></div><div class="s-games small num">${games.join('')}</div></li>`;
@@ -217,14 +222,16 @@ function sessionsHtml(ok) {
     (list.length > N ? `<details><summary>更早的 ${list.length - N} 次</summary><ul class="list sessions">${list.slice(N).map(sessionHtml).join('')}</ul></details>` : '');
 }
 
-// 出勤日历：最近 26 周，每天一格。颜色 = 那天打得最多的游戏，深浅 = 一共打了几首
-const WEEKS = 26;
+// 出勤日历：最近 26 周（手机 15 周，格子太小点不中），每天一格。颜色 = 那天打的游戏（几个游戏时从圆心按首数比例分扇形），深浅 = 一共打了几首
+const narrowMq = window.matchMedia('(max-width: 600px)');
+narrowMq.addEventListener?.('change', () => render());
 const dayKey = (ms) => new Date(ms).toDateString();
 function calendarHtml(ok) {
   // 一次游玩都没记到时（刚开始记录），整片空格子看起来像没加载出来，改成一句说明
   if (!ok.some((r) => r.a.plays.length)) {
     return `<div class="push-head"><b>出勤日历</b></div><div class="empty">还没有记录到游玩。书签只记「上一次运行之后」的游玩：下次打完歌运行一次书签，这里就会显示出勤的日子。</div>`;
   }
+  const WEEKS = narrowMq.matches ? 15 : 26;
   const days = new Map(); // dayKey → Map(game → 首数)
   ok.forEach((r) => r.a.plays.forEach((ms) => {
     const k = dayKey(ms);
@@ -232,13 +239,16 @@ function calendarHtml(ok) {
     days.get(k).set(r.game, (days.get(k).get(r.game) || 0) + 1);
   }));
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const first = new Date(today); first.setDate(first.getDate() - ((first.getDay() + 6) % 7) - (WEEKS - 1) * 7); // 26 周前的周一
+  const first = new Date(today); first.setDate(first.getDate() - ((first.getDay() + 6) % 7) - (WEEKS - 1) * 7); // WEEKS 周前的周一
   const cells = [], months = [];
   let lastMonth = -1;
   for (let i = 0; i < WEEKS * 7; i++) {
     const t = new Date(first); t.setDate(first.getDate() + i);
     if (i % 7 === 0) {
-      months.push(t.getMonth() !== lastMonth ? `<span>${t.getMonth() + 1}月</span>` : '<span></span>');
+      // 第一列是月底时，下一个月的标签马上就来，两个会挤在一起：第一列不写
+      const nextWeek = new Date(t); nextWeek.setDate(t.getDate() + 14);
+      const crowded = i === 0 && nextWeek.getMonth() !== t.getMonth();
+      months.push(t.getMonth() !== lastMonth && !crowded ? `<span>${t.getMonth() + 1}月</span>` : '<span></span>');
       lastMonth = t.getMonth();
     }
     if (t > today) { cells.push('<i class="future"></i>'); continue; }
@@ -247,14 +257,20 @@ function calendarHtml(ok) {
       (g ? [...g.entries()].map(([game, n]) => `${game.label} ${n} 首`).join('、') : '没有记录');
     if (!g) { cells.push(`<i title="${esc(label)}" data-label="${esc(label)}"></i>`); continue; }
     const n = [...g.values()].reduce((s, v) => s + v, 0);
-    const top = [...g.entries()].sort((p, q) => q[1] - p[1])[0][0];
     const level = n <= 5 ? 0.35 : n <= 15 ? 0.6 : n <= 30 ? 0.8 : 1;
-    cells.push(`<i class="on" style="background:${top.color};opacity:${level}" title="${esc(label)}" data-label="${esc(label)}"></i>`);
+    // 打了几个游戏时，从格子中心按首数的比例分扇形（从正上方开始顺时针，按 GAMES 的顺序）
+    const parts = [...g.entries()].sort((p, q) => GAMES.indexOf(p[0]) - GAMES.indexOf(q[0]));
+    let acc = 0;
+    const bg = parts.length === 1 ? parts[0][0].color : 'conic-gradient(' + parts.map(([game, c]) => {
+      const from = acc; acc += c / n * 360;
+      return `${game.color} ${from.toFixed(1)}deg ${acc.toFixed(1)}deg`;
+    }).join(', ') + ')';
+    cells.push(`<i class="on" style="background:${bg};opacity:${level}" title="${esc(label)}" data-label="${esc(label)}"></i>`);
   }
   const legend = ok.map((r) => `<span><i style="background:${r.game.color}"></i>${esc(r.game.label)}</span>`).join('') +
     `<span class="muted">颜色越深打得越多（1–5 / 6–15 / 16–30 / 31 首以上）</span>`;
   return `<div class="push-head"><b>出勤日历</b><span class="small muted">最近 ${WEEKS} 周</span></div>` +
-    `<div class="cal-months">${months.join('')}</div><div class="cal">${cells.join('')}</div>` +
+    `<div style="--weeks:${WEEKS}"><div class="cal-months">${months.join('')}</div><div class="cal">${cells.join('')}</div></div>` +
     `<div class="cal-note small muted" id="cal-note">点一格看那天打了什么</div><div class="cal-legend small">${legend}</div>`;
 }
 
