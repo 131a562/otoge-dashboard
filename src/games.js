@@ -143,14 +143,17 @@ export function analyze(game, raw) {
     // suffix：显示在曲名后面的区分（音击同名曲的艺术家）；unsure：分不出是哪个版本，不当作新打的谱面
     const { key, kind, suffix, unsure } = keyOf(o);
     if (!charts.has(key)) {
-      charts.set(key, { title: norm(o.n) + (suffix ? '（' + suffix + '）' : ''), d: o.d, kind, pts: [], fresh: !unsure && isNew(o), unsure });
+      // firstNr：第一次出现就是游戏标了 NEW RECORD 的游玩 → 分数确实提高了，只是不知道原来是多少（同书签 derive 的「首次」）
+      charts.set(key, { title: norm(o.n) + (suffix ? '（' + suffix + '）' : ''), d: o.d, kind, pts: [],
+        fresh: !unsure && isNew(o), firstNr: o.src === 'p' && !!o.nr, unsure });
     }
     charts.get(key).pts.push({ ms: timeMs(o.t), v: game.score(o) });
   });
 
   // startMs 之后最佳分数提高了的谱面。起点（第一次记录）之前不知道成绩，所以比较的基准最早是起点那次的成绩扫描；
   // 基准里没有、而且是新打的谱面 = 这段时间里第一次打的（first），单独列出；
-  // 不是新打的（以前就打过，只是起点那次没读到）以第一次读到的成绩为基准
+  // 不是新打的（以前就打过，只是起点那次没读到）以第一次读到的成绩为基准；
+  // 但第一次读到的就是 NEW RECORD 的游玩时，算一次推分，原来的分数未知（unknownFrom，例如中二第一次读到的 ULTIMA）
   // endMs：只看到这个时间为止的成绩（一次出勤里推了哪些谱面）
   const improved = (startMs, endMs = Infinity) => {
     const cut = Math.max(startMs, sinceMs + 1);
@@ -164,11 +167,12 @@ export function analyze(game, raw) {
         if (p.ms < cut) before = before == null ? p.v : Math.max(before, p.v);
         if (after == null || p.v > after) { after = p.v; at = p.ms; }
       });
-      if (before == null && !c.fresh) before = c.pts[0].v;
+      const unknownFrom = before == null && !c.fresh && c.firstNr;
+      if (before == null && !c.fresh && !c.firstNr) before = c.pts[0].v;
       if (after == null || (before != null && after <= before)) return;
       out.push({
         title: c.title, diff: game.diffName(c.d) + (c.kind ? ' ' + c.kind : ''), diffColor: game.diffColor(c.d),
-        from: before, to: after, gain: before == null ? 0 : after - before, first: before == null, at,
+        from: before, to: after, gain: before == null ? 0 : after - before, first: before == null && !unknownFrom, unknownFrom, at,
       });
     });
     return out.sort((a, b) => b.gain - a.gain || b.at - a.at);

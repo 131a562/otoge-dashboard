@@ -288,6 +288,8 @@ function pushHtml(r) {
   const li = (x) => `<li><span class="badge" style="background:${x.diffColor}">${esc(x.diff)}</span>` +
     `<span class="title" title="${esc(x.title)}">${esc(x.title)}</span>` +
     (x.first ? `<span class="num">${esc(game.fmtScore(x.to))}</span>`
+      // 第一次读到就是 NEW RECORD：分数提高了，但原来是多少不知道
+      : x.unknownFrom ? `<span class="gain">首次记录</span><span class="fromto num">原来的分数未记录 → ${esc(game.fmtScore(x.to))}</span>`
       : `<span class="gain num">${esc(game.fmtGain(x.gain))}</span><span class="fromto num">${esc(game.fmtScore(x.from))} → ${esc(game.fmtScore(x.to))}</span>`) +
     `</li>`;
   const listOf = (arr, n) => `<ul class="list">${arr.slice(0, n).map(li).join('')}</ul>` +
