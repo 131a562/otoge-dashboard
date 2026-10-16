@@ -257,7 +257,7 @@ function calendarHtml(ok) {
       (g ? [...g.entries()].map(([game, n]) => `${game.label} ${n} 首`).join('、') : '没有记录');
     if (!g) { cells.push(`<i title="${esc(label)}" data-label="${esc(label)}"></i>`); continue; }
     const n = [...g.values()].reduce((s, v) => s + v, 0);
-    const level = n <= 5 ? 0.35 : n <= 15 ? 0.6 : n <= 30 ? 0.8 : 1;
+    const level = n <= 15 ? 0.35 : n <= 30 ? 0.6 : n <= 45 ? 0.8 : 1;
     // 打了几个游戏时，从格子中心按首数的比例分扇形（从正上方开始顺时针，按 GAMES 的顺序）
     const parts = [...g.entries()].sort((p, q) => GAMES.indexOf(p[0]) - GAMES.indexOf(q[0]));
     let acc = 0;
@@ -268,7 +268,7 @@ function calendarHtml(ok) {
     cells.push(`<i class="on" style="background:${bg};opacity:${level}" title="${esc(label)}" data-label="${esc(label)}"></i>`);
   }
   const legend = ok.map((r) => `<span><i style="background:${r.game.color}"></i>${esc(r.game.label)}</span>`).join('') +
-    `<span class="muted">颜色越深打得越多（1–5 / 6–15 / 16–30 / 31 首以上）</span>`;
+    `<span class="muted">颜色越深打得越多（1–15 / 16–30 / 31–45 / 46 首以上）</span>`;
   return `<div class="push-head"><b>出勤日历</b><span class="small muted">最近 ${WEEKS} 周</span></div>` +
     `<div style="--weeks:${WEEKS}"><div class="cal-months">${months.join('')}</div><div class="cal">${cells.join('')}</div></div>` +
     `<div class="cal-note small muted" id="cal-note">点一格看那天打了什么</div><div class="cal-legend small">${legend}</div>`;
