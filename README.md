@@ -1,0 +1,51 @@
+# otoge-dashboard 音游查分面板
+
+一个网页，填上同步名字就能看 CHUNITHM / maimai DX / オンゲキ 三个游戏的记录总览。数据来自三个查分书签（chuni-b50 / maimai-dx-score / ongeki-score-export）同步到私有仓库 `otoge-history` 的历史记录，经由 `otoge-sync` Worker **只读**取得。
+
+## 页面内容
+
+- **同步名字**：三个游戏各一个输入框，不玩的留空。填书签第一次同步时填的名字（默认是游戏里的玩家名，大小写、全角半角都可以，会按书签的规则统一）。名字记在这个浏览器里；「复制我的面板链接」得到的网址带着名字（`?chunithm=…&maimai=…&ongeki=…`），发给朋友或存成书签，打开就是这个人的面板（打开别人的链接不会覆盖自己记住的名字，点「查看」才会）。
+- **时间段**：7 天 / 30 天 / 90 天 / 全部，下面所有内容都按这个时间段统计。
+- **总览卡片**（每个游戏一张）：现在的 Rating 和这段时间的变化、各枠的合计 / 平均（取最后一次快照）、开始记录的日期、最后一次运行书签的日期（超过 14 天标黄），以及这段时间里记录到的游玩次数、推分谱面数、新打的谱面数。
+- **Rating 走势**：每个游戏一张图，按天取当天最后的值。maimai 还包括游玩详情里游戏记录的 Rating（同书签）。
+- **推分**：这段时间里最佳分数提高了的谱面，「之前的最佳 → 现在的最佳」，按提高的多少排序（中二 / 音击是分数，maimai 是达成率）。各谱面提高的分数不加总，标题行写这段时间账号 Rating 的变化（Rating 快照的实际值，和卡片上的相同）。这段时间里第一次打的谱面单独列出。
+
+推分只比较每个谱面「时间段开始前的最佳」和「现在的最佳」，不做书签「历史走势」页那样逐次的推分判定、标记变化和账号 Rating 推算，所以不需要下载定数表。时间段早于第一次记录（起点）时，从起点那次的成绩扫描开始比较。
+
+## 文件
+
+- `index.html`：页面和样式
+- `src/app.js`：名字输入、读取、显示
+- `src/games.js`：三个游戏的记录格式 → 面板的数据（Rating、走势、游玩次数、推分谱面）
+- `src/common.js`：共用工具（名字的统一写法、读取 otoge-sync）
+- `src/config.js`：otoge-sync 的地址
+- `test/serve.mjs` + `test/mock-data.mjs`：本地预览
+
+## 本地预览
+
+```bash
+node otoge-dashboard/test/serve.mjs
+```
+
+然后打开 http://localhost:5180/?sync=http://localhost:5181&chunithm=TESTER&maimai=TESTER&ongeki=TESTER
+
+- 5180 是面板，5181 运行真正的 `../otoge-sync/worker.js`（GitHub 用内存模拟），预置了三个游戏 60 天的模拟记录，名字都是 `TESTER`。跨域访问和线上一样走 Worker 的只读来源（`VIEWER_ORIGINS`）。
+- `?chunithm=ＺＥＮＫＡＫＵ`：测试 chuni-b50 旧版本按全角保存的名字
+- `?sync=` 只接受 localhost 的地址，线上页面不会被别人的链接指到别的服务
+
+## 部署
+
+1. **更新 otoge-sync**（加了查分面板的只读来源）：Cloudflare → `otoge-sync` → Edit code，粘贴 `../otoge-sync/worker.js` 的全部内容 → Deploy。不需要新的变量。
+   - 检查：`https://otoge-sync.131a562-index01.workers.dev/health` 仍然是 `"ok": true`
+2. 在 GitHub 新建一个**公开**仓库 `otoge-dashboard`，把本文件夹的内容推上去（不含数据，只有网页）。
+3. 仓库 Settings → Pages → Source 选 `Deploy from a branch`，分支 `main`，目录 `/ (root)`。
+4. 一两分钟后打开 `https://131a562.github.io/otoge-dashboard/`。
+
+Worker 只允许 `https://131a562.github.io` 这个来源读（`VIEWER_ORIGINS`），不允许写。用户名或域名不一样时，改 `../otoge-sync/worker.js` 里的 `VIEWER_ORIGINS` 再部署一次。
+
+## 已知限制
+
+- 游玩次数只算书签记到的プレイ履歴：两次运行书签之间打了 50 首以上时，较早的会漏掉（最佳分数仍会被成绩扫描补上，所以推分不受影响）。
+- maimai 的プレイ履歴没认出 DX/STD 时，按同名谱面在成绩扫描里的种类归类；同一首歌 DX / 标准谱面都打过、又区分不了时，会单独列成「?」。
+- オンゲキ 的谱面按「曲名 + 难度」区分，同名曲（Singularity 等）会合并成一条（同书签）。
+- 和书签一样没有密码：知道名字的人都能看这个人的记录。
