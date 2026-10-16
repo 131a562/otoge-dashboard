@@ -43,6 +43,13 @@ export const GAMES = [
       return { ...h, since };
     },
     keyOf: () => (o) => ({ key: titleKey(o), kind: '' }),
+    // 起点那次不一定读了全曲成绩（只读 B50 时只有 50 首），所以「第一次出现」不等于「新打的」。
+    // 同书签的 derive：之前已经有覆盖这个难度的完整全曲扫描（hist.scans）、而那次里没有它，才算新打的；
+    // プレイ履歴里对应不到曲目 id 的（k 以 n: 开头）不算
+    isNewChart: (hist) => {
+      const full = (hist.scans || []).map((x) => { const [t, ds] = x.split('|'); return { t, ds: (ds || '').split(',').map(Number) }; });
+      return (o) => !String(o.k).startsWith('n:') && full.some((f) => f.t < o.t && f.ds.includes(o.d));
+    },
     diffName: (d) => ['BAS', 'ADV', 'EXP', 'MAS', 'ULT'][d] || '?',
     diffColor: (d) => ['#22bb5b', '#e8a10a', '#e3374c', '#9b3fd6', '#555'][d] || '#888',
     score: (o) => o.s, fmtScore: num, fmtGain: (g) => '+' + num(g),
@@ -85,22 +92,24 @@ export const GAMES = [
 export function analyze(game, raw) {
   const hist = game.normalize({ ...raw, obs: raw.obs || [], snaps: raw.snaps || [] });
   const since = hist.since || '';
-  const obs = hist.obs.filter((o) => o.t >= since && game.score(o) >= 0);
+  const obs = hist.obs.filter((o) => o.t >= since && game.score(o) >= 0).sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
   const snaps = hist.snaps.filter((s) => s.t >= since);
   const sinceMs = since ? timeMs(since) : -Infinity;
 
-  // 每个谱面的观测（时间、分数），按时间排好
+  // 每个谱面的观测（时间、分数），按时间排好。fresh = 第一次出现时是新打的谱面
+  // （maimai / オンゲキ 的起点一定是全曲扫描，所以起点之后才出现的就是新打的；中二见上面的 isNewChart）
   const keyOf = game.keyOf(obs);
+  const isNew = game.isNewChart ? game.isNewChart(hist) : (o) => !!since && o.t > since;
   const charts = new Map();
   obs.forEach((o) => {
     const { key, kind } = keyOf(o);
-    if (!charts.has(key)) charts.set(key, { title: norm(o.n), d: o.d, kind, pts: [] });
+    if (!charts.has(key)) charts.set(key, { title: norm(o.n), d: o.d, kind, pts: [], fresh: isNew(o) });
     charts.get(key).pts.push({ ms: timeMs(o.t), v: game.score(o) });
   });
-  charts.forEach((c) => c.pts.sort((a, b) => a.ms - b.ms));
 
   // startMs 之后最佳分数提高了的谱面。起点（第一次记录）之前不知道成绩，所以比较的基准最早是起点那次的成绩扫描；
-  // 基准里没有的谱面 = 这段时间里第一次打的（first），单独列出
+  // 基准里没有、而且是新打的谱面 = 这段时间里第一次打的（first），单独列出；
+  // 不是新打的（以前就打过，只是起点那次没读到）以第一次读到的成绩为基准
   const improved = (startMs) => {
     const cut = Math.max(startMs, sinceMs + 1);
     const out = [];
@@ -110,6 +119,7 @@ export function analyze(game, raw) {
         if (p.ms < cut) before = before == null ? p.v : Math.max(before, p.v);
         if (after == null || p.v > after) { after = p.v; at = p.ms; }
       });
+      if (before == null && !c.fresh) before = c.pts[0].v;
       if (after == null || (before != null && after <= before)) return;
       out.push({
         title: c.title, diff: game.diffName(c.d) + (c.kind ? ' ' + c.kind : ''), diffColor: game.diffColor(c.d),

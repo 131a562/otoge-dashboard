@@ -131,11 +131,13 @@ function trendSvg(game, a) {
   const daily = [...byDay.values()];
   const anchor = daily.filter((p) => p.ms < start).pop();
   const pts = (anchor ? [{ ms: start, r: anchor.r }] : []).concat(daily.filter((p) => p.ms >= start));
-  if (pts.length < 2) return `<div class="small muted" style="padding:16px 0">这段时间的记录不够画图</div>`;
+  if (pts.length < 2) return `<div class="small muted" style="padding:16px 0">这段时间的记录还不够画图（要有两天以上的 Rating 记录）</div>`;
   const W = 600, H = 120, L = 4, R = 4, T = 14, B = 16;
   const x0 = pts[0].ms, x1 = Math.max(Date.now(), pts[pts.length - 1].ms);
-  let y0 = Math.min(...pts.map((p) => p.r)), y1 = Math.max(...pts.map((p) => p.r));
-  if (y1 - y0 < 1e-9) { y0 -= 1; y1 += 1; }
+  const lo = Math.min(...pts.map((p) => p.r)), hi = Math.max(...pts.map((p) => p.r));
+  // 没有变化时线画在中间（上下范围只是为了画图撑开的，标签写实际的值）
+  const flat = hi - lo < 1e-9;
+  const y0 = flat ? lo - 1 : lo, y1 = flat ? hi + 1 : hi;
   const X = (ms) => L + (ms - x0) / (x1 - x0 || 1) * (W - L - R);
   const Y = (r) => T + (1 - (r - y0) / (y1 - y0)) * (H - T - B);
   let d = '';
@@ -144,12 +146,12 @@ function trendSvg(game, a) {
   const fmt = game.fmtRating;
   const lbl = (ms) => { const t = new Date(ms); return (t.getMonth() + 1) + '/' + t.getDate(); };
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(game.label)} Rating 走势">
-    <line x1="${L}" x2="${W - R}" y1="${Y(y1)}" y2="${Y(y1)}" stroke="var(--line)" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
-    <line x1="${L}" x2="${W - R}" y1="${Y(y0)}" y2="${Y(y0)}" stroke="var(--line)" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+    ${flat ? '' : `<line x1="${L}" x2="${W - R}" y1="${Y(hi)}" y2="${Y(hi)}" stroke="var(--line)" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+    <line x1="${L}" x2="${W - R}" y1="${Y(lo)}" y2="${Y(lo)}" stroke="var(--line)" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>`}
     <path d="${d}" fill="none" stroke="${game.color}" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
   </svg>
   <div class="row small muted num" style="justify-content:space-between"><span>${lbl(x0)}</span>
-    <span>最低 ${esc(fmt(y0))} · 最高 ${esc(fmt(y1))}</span><span>${lbl(x1)}</span></div>`;
+    <span>${flat ? '没有变化 · ' + esc(fmt(lo)) : '最低 ' + esc(fmt(lo)) + ' · 最高 ' + esc(fmt(hi))}</span><span>${lbl(x1)}</span></div>`;
 }
 
 function pushHtml(r) {
