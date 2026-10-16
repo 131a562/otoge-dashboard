@@ -80,7 +80,13 @@ export const GAMES = [
     id: 'ongeki', label: 'オンゲキ', color: '#e0508f',
     // v4 以前的记录书签会整份丢弃，这里也不显示
     normalize: (h) => (h.v === 4 ? h : { ...h, since: '', obs: [], snaps: [] }),
-    keyOf: () => (o) => ({ key: titleKey(o), kind: '' }),
+    // 谱面键直接用书签存的 k：一般是「曲名|难度」，同名曲（Singularity 等）是「曲名|难度|艺术家」，
+    // プレイ履歴里分不出是哪个版本的游玩是「曲名|难度|?」（见 ongeki-score-export 的 histKeyOf / parsePlaylog）
+    keyOf: () => (o) => {
+      const extra = String(o.k || '').split('|')[2];
+      if (extra == null) return { key: titleKey(o), kind: '' };
+      return { key: titleKey(o) + '|' + extra, kind: '', suffix: extra === '?' ? '版本未知' : extra, unsure: extra === '?' };
+    },
     diffName: (d) => ({ EXPERT: 'EXP', MASTER: 'MAS', LUNATIC: 'LUN' }[d] || d),
     diffColor: (d) => ({ EXPERT: '#e3374c', MASTER: '#9b3fd6', LUNATIC: '#d6336c' }[d] || '#888'),
     score: (o) => o.s, fmtScore: num, fmtGain: (g) => '+' + num(g),
@@ -133,8 +139,11 @@ export function analyze(game, raw) {
   const isNew = game.isNewChart ? game.isNewChart(hist) : (o) => !!since && o.t > since;
   const charts = new Map();
   obs.forEach((o) => {
-    const { key, kind } = keyOf(o);
-    if (!charts.has(key)) charts.set(key, { title: norm(o.n), d: o.d, kind, pts: [], fresh: isNew(o) });
+    // suffix：显示在曲名后面的区分（音击同名曲的艺术家）；unsure：分不出是哪个版本，不当作新打的谱面
+    const { key, kind, suffix, unsure } = keyOf(o);
+    if (!charts.has(key)) {
+      charts.set(key, { title: norm(o.n) + (suffix ? '（' + suffix + '）' : ''), d: o.d, kind, pts: [], fresh: !unsure && isNew(o), unsure });
+    }
     charts.get(key).pts.push({ ms: timeMs(o.t), v: game.score(o) });
   });
 
@@ -146,6 +155,8 @@ export function analyze(game, raw) {
     const cut = Math.max(startMs, sinceMs + 1);
     const out = [];
     charts.forEach((c) => {
+      // 分不出版本的游玩可能来自不同的谱面，互相比较不算推分（游玩次数、出勤里照常统计）
+      if (c.unsure) return;
       let before = null, after = null, at = 0;
       c.pts.forEach((p) => {
         if (p.ms > endMs) return;
