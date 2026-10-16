@@ -54,6 +54,8 @@ export const GAMES = [
     diffColor: (d) => ['#22bb5b', '#e8a10a', '#e3374c', '#9b3fd6', '#555'][d] || '#888',
     score: (o) => o.s, fmtScore: num, fmtGain: (g) => '+' + num(g),
     fmtRating: (r) => Number(r).toFixed(2),
+    // 里程碑（整数单位 = Rating × scale，避免浮点误差）：15.00 以下每 0.5 一次，15.00 以上每 0.1 一次
+    scale: 100, tiers: [[1500, 50], [Infinity, 10]],
     ratingSub: (s) => [['BEST 30 平均', s.b30 ? s.b30.toFixed(4) : '—'], ['NEW 20 平均', s.n20 ? s.n20.toFixed(4) : '—']],
   },
   {
@@ -65,6 +67,8 @@ export const GAMES = [
     diffColor: (d) => ({ EXPERT: '#e3374c', MASTER: '#9b3fd6', 'Re:MASTER': '#c17be0' }[d] || '#888'),
     score: (o) => o.a, fmtScore: fmtAch, fmtGain: (g) => '+' + (g / 10000).toFixed(4) + '%',
     fmtRating: (r) => String(r),
+    // 里程碑：16000 以下每 500 一次，16000 以上每 100 一次
+    scale: 1, tiers: [[16000, 500], [Infinity, 100]],
     ratingSub: (s) => [['BEST35 合计', s.parts ? String(s.parts[1]) : '—'], ['NEW15 合计', s.parts ? String(s.parts[0]) : '—']],
     // 游玩详情里游戏记录的「游玩后的 DX Rating」和「游玩前 = 游玩后 − 变动」也画进走势（同书签）
     extraSeries: (obs) => obs.filter((o) => o.src === 'p' && o.r > 0).flatMap((o) => {
@@ -81,6 +85,8 @@ export const GAMES = [
     diffColor: (d) => ({ EXPERT: '#e3374c', MASTER: '#9b3fd6', LUNATIC: '#d6336c' }[d] || '#888'),
     score: (o) => o.s, fmtScore: num, fmtGain: (g) => '+' + num(g),
     fmtRating: (r) => Number(r).toFixed(3),
+    // 里程碑：每 0.5 一次
+    scale: 1000, tiers: [[Infinity, 500]],
     ratingSub: (s) => {
       const p = (i) => (s.parts ? (s.parts[i] / 1000).toFixed(3) : '—');
       return [['新曲枠', p(0)], ['ベスト枠', p(1)], ['P-SCORE枠', p(2)]];
@@ -88,7 +94,32 @@ export const GAMES = [
   },
 ];
 
-// 一份历史记录 → { since, lastRun, rating, series, plays, chartCount, improved(startMs) }
+// 比 u 高的下一个里程碑（整数单位）。tiers = [[上限, 间隔], ...]：u 低于某个上限时按那一段的间隔，
+// 一段的上限本身也是里程碑（例如中二 15.00）
+const nextMark = (tiers, u) => {
+  const [limit, step] = tiers.find(([lim]) => u < lim);
+  return Math.min((Math.floor(u / step) + 1) * step, limit);
+};
+
+// Rating 走势里每一次第一次跨过里程碑的时刻 → [{ ms, value }]；以及下一个里程碑
+// 起点那次的 Rating 只当作出发点，不算里程碑。Rating 掉下来再涨回去不重复算
+export function milestones(game, series) {
+  const out = [];
+  if (!series.length) return { list: out, next: null };
+  const unit = (r) => Math.round(r * game.scale);
+  let best = unit(series[0].r);
+  series.forEach((p) => {
+    const u = unit(p.r);
+    if (u <= best) return;
+    for (let m = nextMark(game.tiers, best); m <= u; m = nextMark(game.tiers, m)) out.push({ ms: p.ms, value: m / game.scale });
+    best = u;
+  });
+  const now = unit(series[series.length - 1].r);
+  const next = nextMark(game.tiers, best);
+  return { list: out, next: { value: next / game.scale, gap: (next - now) / game.scale } };
+}
+
+// 一份历史记录 → { since, lastRun, rating, series, plays, chartCount, improved(startMs[, endMs]), milestones }
 export function analyze(game, raw) {
   const hist = game.normalize({ ...raw, obs: raw.obs || [], snaps: raw.snaps || [] });
   const since = hist.since || '';
@@ -110,12 +141,14 @@ export function analyze(game, raw) {
   // startMs 之后最佳分数提高了的谱面。起点（第一次记录）之前不知道成绩，所以比较的基准最早是起点那次的成绩扫描；
   // 基准里没有、而且是新打的谱面 = 这段时间里第一次打的（first），单独列出；
   // 不是新打的（以前就打过，只是起点那次没读到）以第一次读到的成绩为基准
-  const improved = (startMs) => {
+  // endMs：只看到这个时间为止的成绩（一次出勤里推了哪些谱面）
+  const improved = (startMs, endMs = Infinity) => {
     const cut = Math.max(startMs, sinceMs + 1);
     const out = [];
     charts.forEach((c) => {
       let before = null, after = null, at = 0;
       c.pts.forEach((p) => {
+        if (p.ms > endMs) return;
         if (p.ms < cut) before = before == null ? p.v : Math.max(before, p.v);
         if (after == null || p.v > after) { after = p.v; at = p.ms; }
       });
@@ -140,5 +173,6 @@ export function analyze(game, raw) {
     plays: obs.filter((o) => o.src === 'p').map((o) => timeMs(o.t)),
     chartCount: charts.size,
     improved,
+    milestones: milestones(game, series),
   };
 }

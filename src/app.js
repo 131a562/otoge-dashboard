@@ -95,6 +95,11 @@ const fmtDelta = (game, d) => {
   return `<span class="delta ${v > 0 ? 'up' : 'flat'}">${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(digits)}</span>`;
 };
 
+const fmtGap = (game, g) => (game.scale === 1 ? String(Math.round(g)) : g.toFixed(Math.log10(game.scale)));
+const md = (ms) => { const t = new Date(ms); return (t.getMonth() + 1) + '/' + t.getDate(); };
+const hm = (ms) => { const t = new Date(ms); return t.getHours() + ':' + String(t.getMinutes()).padStart(2, '0'); };
+const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
 function cardHtml(r) {
   const { game, name } = r;
   const head = `<h3>${esc(game.label)}<span>${esc(name)}</span></h3>`;
@@ -113,6 +118,7 @@ function cardHtml(r) {
     `<div class="small muted">${a.rating ? 'Rating · ' + periodLabel() + '变化' : '还没有 Rating 快照'}</div>` +
     `<dl class="kv num">` +
     (a.rating ? a.rating.sub.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('') : '') +
+    (a.rating && a.milestones.next ? `<dt>下一个里程碑</dt><dd>${esc(game.fmtRating(a.milestones.next.value))}（还差 ${esc(fmtGap(game, a.milestones.next.gap))}）</dd>` : '') +
     `<dt>开始记录</dt><dd>${dateText(a.since)}</dd>` +
     `<dt>最后一次运行书签</dt><dd class="${stale ? 'warn' : ''}">${dateText(a.lastRun)}（${ago(a.lastRun)}）</dd>` +
     `</dl>` +
@@ -144,14 +150,108 @@ function trendSvg(game, a) {
   pts.forEach((p, i) => { d += i ? `H${X(p.ms).toFixed(1)}V${Y(p.r).toFixed(1)}` : `M${X(p.ms).toFixed(1)} ${Y(p.r).toFixed(1)}`; });
   d += `H${X(x1).toFixed(1)}`;
   const fmt = game.fmtRating;
-  const lbl = (ms) => { const t = new Date(ms); return (t.getMonth() + 1) + '/' + t.getDate(); };
+  const lbl = md;
+  // 这段时间达成的里程碑：画在当天那一级台阶上
+  const reached = a.milestones.list.filter((m) => m.ms >= start);
+  const sameDay = (p, t) => new Date(p).toDateString() === new Date(t).toDateString();
+  const dots = reached.map((m) => {
+    const p = pts.filter((q) => q.ms <= m.ms || sameDay(q.ms, m.ms)).pop() || pts[0];
+    return `<circle cx="${X(p.ms).toFixed(1)}" cy="${Y(Math.min(m.value, p.r)).toFixed(1)}" r="4" fill="var(--card)" stroke="${game.color}" stroke-width="2" vector-effect="non-scaling-stroke"><title>${esc(fmt(m.value))}（${md(m.ms)}）</title></circle>`;
+  }).join('');
+  const shown = reached.slice(-6).reverse();
+  const msText = reached.length
+    ? `<div class="small milestones">达成里程碑 ${reached.length} 个：${shown.map((m) => `<b>${esc(fmt(m.value))}</b> <span class="muted">${md(m.ms)}</span>`).join('　')}${reached.length > shown.length ? '　…' : ''}</div>`
+    : '';
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(game.label)} Rating 走势">
     ${flat ? '' : `<line x1="${L}" x2="${W - R}" y1="${Y(hi)}" y2="${Y(hi)}" stroke="var(--line)" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
     <line x1="${L}" x2="${W - R}" y1="${Y(lo)}" y2="${Y(lo)}" stroke="var(--line)" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>`}
     <path d="${d}" fill="none" stroke="${game.color}" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+    ${dots}
   </svg>
   <div class="row small muted num" style="justify-content:space-between"><span>${lbl(x0)}</span>
-    <span>${flat ? '没有变化 · ' + esc(fmt(lo)) : '最低 ' + esc(fmt(lo)) + ' · 最高 ' + esc(fmt(hi))}</span><span>${lbl(x1)}</span></div>`;
+    <span>${flat ? '没有变化 · ' + esc(fmt(lo)) : '最低 ' + esc(fmt(lo)) + ' · 最高 ' + esc(fmt(hi))}</span><span>${lbl(x1)}</span></div>${msText}`;
+}
+
+// ---- 出勤 ----
+// 把所有游戏的游玩按时间排好，相隔 3 小时以上就算下一次出勤（一次出勤里可能打了几个游戏）
+const GAP = 3 * 3600e3;
+function sessionsOf(ok) {
+  const plays = ok.flatMap((r) => r.a.plays.map((ms) => ({ ms, r }))).sort((x, y) => x.ms - y.ms);
+  const out = [];
+  let cur = null;
+  plays.forEach((p) => {
+    if (!cur || p.ms - cur.end > GAP) { cur = { start: p.ms, end: p.ms, games: new Map() }; out.push(cur); }
+    cur.end = p.ms;
+    cur.games.set(p.r, (cur.games.get(p.r) || 0) + 1);
+  });
+  out.forEach((x, i) => { x.nextStart = out[i + 1] ? out[i + 1].start : Infinity; });
+  return out;
+}
+// 一次出勤前后的 Rating 变化：出勤前最后一个值 → 下一次出勤之前最后一个值（出勤后没运行书签时为 null）
+function sessionDelta(a, x) {
+  const before = a.series.filter((p) => p.ms < x.start).pop();
+  const after = a.series.filter((p) => p.ms < x.nextStart).pop();
+  return before && after && after.ms >= x.start ? after.r - before.r : null;
+}
+function sessionHtml(x) {
+  const t = new Date(x.start);
+  const games = [...x.games.entries()].sort((p, q) => GAMES.indexOf(p[0].game) - GAMES.indexOf(q[0].game)).map(([r, n]) => {
+    const imp = r.a.improved(x.start, x.end);
+    const pushed = imp.filter((i) => !i.first).length, fresh = imp.length - pushed;
+    const d = sessionDelta(r.a, x);
+    return `<span class="sg"><b style="color:${r.game.color}">${esc(r.game.label)}</b> ${n} 首` +
+      (pushed ? ` · 推分 ${pushed}` : '') + (fresh ? ` · 新打 ${fresh}` : '') +
+      (d != null ? ` · Rating ${fmtDelta(r.game, d)}` : '') + `</span>`;
+  });
+  return `<li><div class="s-date num">${t.getMonth() + 1}/${t.getDate()} ${WEEK[t.getDay()]}` +
+    ` <span class="muted small">${hm(x.start)}–${hm(x.end)}</span></div><div class="s-games small num">${games.join('')}</div></li>`;
+}
+function sessionsHtml(ok) {
+  const start = periodStart();
+  const list = sessionsOf(ok).filter((x) => x.end >= start).reverse();
+  if (!list.length) return `<div class="push-head"><b>出勤记录</b></div><div class="empty">${periodLabel()}内没有记录到游玩</div>`;
+  const total = list.reduce((n, x) => n + [...x.games.values()].reduce((s, v) => s + v, 0), 0);
+  const N = 10;
+  return `<div class="push-head"><b>出勤记录</b><span class="small num">${list.length} 次 · 共 ${total} 首 · 平均每次 ${Math.round(total / list.length)} 首</span></div>` +
+    `<ul class="list sessions">${list.slice(0, N).map(sessionHtml).join('')}</ul>` +
+    (list.length > N ? `<details><summary>更早的 ${list.length - N} 次</summary><ul class="list sessions">${list.slice(N).map(sessionHtml).join('')}</ul></details>` : '');
+}
+
+// 出勤日历：最近 26 周，每天一格。颜色 = 那天打得最多的游戏，深浅 = 一共打了几首
+const WEEKS = 26;
+const dayKey = (ms) => new Date(ms).toDateString();
+function calendarHtml(ok) {
+  const days = new Map(); // dayKey → Map(game → 首数)
+  ok.forEach((r) => r.a.plays.forEach((ms) => {
+    const k = dayKey(ms);
+    if (!days.has(k)) days.set(k, new Map());
+    days.get(k).set(r.game, (days.get(k).get(r.game) || 0) + 1);
+  }));
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const first = new Date(today); first.setDate(first.getDate() - ((first.getDay() + 6) % 7) - (WEEKS - 1) * 7); // 26 周前的周一
+  const cells = [], months = [];
+  let lastMonth = -1;
+  for (let i = 0; i < WEEKS * 7; i++) {
+    const t = new Date(first); t.setDate(first.getDate() + i);
+    if (i % 7 === 0) {
+      months.push(t.getMonth() !== lastMonth ? `<span>${t.getMonth() + 1}月</span>` : '<span></span>');
+      lastMonth = t.getMonth();
+    }
+    if (t > today) { cells.push('<i class="future"></i>'); continue; }
+    const g = days.get(dayKey(t.getTime()));
+    const label = `${t.getMonth() + 1}/${t.getDate()} ${WEEK[t.getDay()]}：` +
+      (g ? [...g.entries()].map(([game, n]) => `${game.label} ${n} 首`).join('、') : '没有记录');
+    if (!g) { cells.push(`<i title="${esc(label)}" data-label="${esc(label)}"></i>`); continue; }
+    const n = [...g.values()].reduce((s, v) => s + v, 0);
+    const top = [...g.entries()].sort((p, q) => q[1] - p[1])[0][0];
+    const level = n <= 5 ? 0.35 : n <= 15 ? 0.6 : n <= 30 ? 0.8 : 1;
+    cells.push(`<i class="on" style="background:${top.color};opacity:${level}" title="${esc(label)}" data-label="${esc(label)}"></i>`);
+  }
+  const legend = ok.map((r) => `<span><i style="background:${r.game.color}"></i>${esc(r.game.label)}</span>`).join('') +
+    `<span class="muted">颜色越深打得越多（1–5 / 6–15 / 16–30 / 31 首以上）</span>`;
+  return `<div class="push-head"><b>出勤日历</b><span class="small muted">最近 ${WEEKS} 周</span></div>` +
+    `<div class="cal-months">${months.join('')}</div><div class="cal">${cells.join('')}</div>` +
+    `<div class="cal-note small muted" id="cal-note">点一格看那天打了什么</div><div class="cal-legend small">${legend}</div>`;
 }
 
 function pushHtml(r) {
@@ -178,12 +278,23 @@ function pushHtml(r) {
 function render() {
   $('#cards').innerHTML = results.map((r) => `<div class="panel card" style="--c:${r.game.color}">${cardHtml(r)}</div>`).join('');
   const ok = results.filter((r) => r.status === 'ok' && r.a.since);
+  $('#calendar').innerHTML = ok.length ? calendarHtml(ok) : '<div class="small muted">没有可显示的记录</div>';
+  $('#sessions').innerHTML = ok.length ? sessionsHtml(ok) : '<div class="small muted">没有可显示的记录</div>';
   $('#trends').innerHTML = ok.length
     ? ok.map((r) => `<div class="trend"><div class="head"><b style="color:${r.game.color}">${esc(r.game.label)}</b>` +
       `<span class="muted num">${r.a.rating ? esc(r.a.rating.text) : ''}</span></div>${trendSvg(r.game, r.a)}</div>`).join('')
     : '<div class="small muted">没有可显示的记录</div>';
   $('#pushes').innerHTML = ok.map((r) => `<div class="panel">${pushHtml(r)}</div>`).join('');
 }
+
+// 手机上没有悬停提示：点日历的格子在下面显示那天的内容
+$('#calendar').addEventListener('click', (e) => {
+  const cell = e.target.closest('.cal i[data-label]');
+  if (!cell) return;
+  document.querySelectorAll('.cal i.sel').forEach((x) => x.classList.remove('sel'));
+  cell.classList.add('sel');
+  $('#cal-note').textContent = cell.dataset.label;
+});
 
 const initial = currentNames();
 if (GAMES.some((g) => cleanAccount(initial[g.id]))) load(initial);
