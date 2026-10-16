@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>音游查分面板</title>
+<style>
+  :root {
+    --bg: #f4f3f8; --card: #fff; --ink: #1d1b26; --muted: #6d6a7c; --line: #e3e1ea; --soft: #f0eff5;
+    --good: #1f9d55; --warn: #b7791f; --accent: #5b4bdb;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #15141b; --card: #1f1d27; --ink: #ecebf2; --muted: #9c99ab; --line: #34313f; --soft: #2a2834;
+      --good: #5fd18b; --warn: #e6b450; --accent: #9d92ff; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 "Hiragino Sans", "PingFang SC", "Noto Sans CJK JP", "Microsoft YaHei", system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%; }
+  main { max-width: 1080px; margin: 0 auto; padding: 16px 16px 48px; }
+  h1 { font-size: 22px; margin: 4px 0 2px; }
+  h2 { font-size: 17px; margin: 28px 0 10px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+
+  /* 名字设置 */
+  #names { margin-top: 14px; }
+  #names form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; }
+  #names label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  #names label b { color: var(--ink); font-weight: 600; }
+  input[type=text] { font: inherit; font-size: 16px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--soft); color: var(--ink); width: 100%; min-width: 0; }
+  button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--soft);
+    color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #names .row { margin-top: 10px; }
+  @media (max-width: 720px) { #names form { grid-template-columns: 1fr; } }
+
+  /* 时间段 */
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chips button { padding: 5px 14px; border-radius: 999px; font-size: 14px; }
+  .chips button[aria-pressed=true] { background: var(--ink); color: var(--card); border-color: var(--ink); }
+
+  /* 游戏卡片 */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .card { border-top: 4px solid var(--c); }
+  .card h3 { margin: 0; font-size: 15px; display: flex; justify-content: space-between; gap: 8px; }
+  .card h3 span { font-weight: 400; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rating { font-size: 34px; font-weight: 700; line-height: 1.15; margin-top: 6px; }
+  .delta { font-size: 14px; font-weight: 600; margin-left: 6px; white-space: nowrap; }
+  .push-head .delta { margin-left: 2px; font-size: inherit; }
+  .push-head .small { white-space: nowrap; }
+  .delta.up { color: var(--good); } .delta.flat { color: var(--muted); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin-top: 10px; font-size: 13px; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
+  .stat { background: var(--soft); border-radius: 8px; padding: 6px 8px; }
+  .stat b { display: block; font-size: 18px; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .empty { color: var(--muted); margin-top: 10px; font-size: 14px; }
+  .err { color: #d6336c; margin-top: 10px; font-size: 14px; }
+  .warn { color: var(--warn); }
+
+  /* 走势 */
+  .trend { margin-bottom: 10px; }
+  .trend .head { display: flex; justify-content: space-between; font-size: 13px; }
+  .trend svg { display: block; width: 100%; height: 120px; }
+
+  /* 推分 */
+  .pushes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+  .push-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .push-head b { font-size: 15px; }
+  ul.list { list-style: none; margin: 0; padding: 0; }
+  ul.list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 8px; padding: 7px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+  ul.list li:last-child { border-bottom: 0; }
+  .badge { font-size: 11px; font-weight: 700; color: #fff; border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
+  .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gain { font-weight: 700; color: var(--good); white-space: nowrap; }
+  .fromto { grid-column: 2 / 4; font-size: 12px; color: var(--muted); }
+  .sub-h { font-size: 13px; color: var(--muted); margin: 12px 0 2px; }
+  details summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 6px; }
+
+  footer { margin-top: 32px; font-size: 12px; color: var(--muted); }
+  footer p { margin: 4px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>音游查分面板</h1>
+  <div class="muted small">CHUNITHM / maimai DX / オンゲキ 查分书签同步到云端的记录</div>
+
+  <section id="names" class="panel">
+    <form id="name-form">
+      <label><b>CHUNITHM</b>同步名字<input type="text" name="chunithm" autocomplete="off" placeholder="不玩可以留空"></label>
+      <label><b>maimai DX</b>同步名字<input type="text" name="maimai" autocomplete="off" placeholder="不玩可以留空"></label>
+      <label><b>オンゲキ</b>同步名字<input type="text" name="ongeki" autocomplete="off" placeholder="不玩可以留空"></label>
+      <button class="primary" type="submit">查看</button>
+    </form>
+    <div class="row small muted">
+      <span>只填自己玩的游戏就行，其余留空。填书签第一次同步时填的名字（默认是游戏里的玩家名）。名字会记在这个浏览器里。</span>
+      <button type="button" id="copy-link" class="small">复制我的面板链接</button>
+      <span id="copy-note"></span>
+    </div>
+  </section>
+
+  <div id="board" hidden>
+    <h2 class="row" style="justify-content:space-between">
+      <span>总览</span>
+      <span class="chips" id="period" role="group" aria-label="时间段">
+        <button type="button" data-days="7">7 天</button>
+        <button type="button" data-days="30">30 天</button>
+        <button type="button" data-days="90">90 天</button>
+        <button type="button" data-days="0">全部</button>
+      </span>
+    </h2>
+    <div class="cards" id="cards"></div>
+
+    <h2>Rating 走势</h2>
+    <div class="panel" id="trends"></div>
+
+    <h2>推分</h2>
+    <div class="pushes" id="pushes"></div>
+  </div>
+
+  <footer>
+    <p>数据只在书签运行时记录：游玩次数只统计记录到的プレイ履歴（两次运行之间打了 50 首以上时，较早的会漏掉）；推分按每个谱面这段时间里的最佳分数和之前的最佳比较。</p>
+    <p>第一次记录（起点）之前的成绩不知道，所以时间段早于起点时，从起点开始比较。</p>
+  </footer>
+</main>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
