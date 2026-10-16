@@ -1,6 +1,9 @@
-import { SYNC_URL as DEFAULT_SYNC } from './config.js';
-import { cleanAccount, legacyAccount, fetchHist, timeMs } from './common.js';
-import { GAMES, analyze } from './games.js';
+// 版本号：index.html 用 src/app.js?v=N 加载这个文件，这里把同样的 ?v=N 带给其他模块。
+// 手机浏览器会长时间缓存脚本，刷新也不一定重新下载；地址变了就一定会下载新的（每次上传改 index.html 里的 N）
+const V = new URL(import.meta.url).search;
+const [{ SYNC_URL: DEFAULT_SYNC }, { cleanAccount, legacyAccount, fetchHist, timeMs }, { GAMES, analyze }] = await Promise.all([
+  import('./config.js' + V), import('./common.js' + V), import('./games.js' + V),
+]);
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -222,7 +225,7 @@ function sessionsHtml(ok) {
     (list.length > N ? `<details><summary>更早的 ${list.length - N} 次</summary><ul class="list sessions">${list.slice(N).map(sessionHtml).join('')}</ul></details>` : '');
 }
 
-// 出勤日历：最近 26 周（手机 15 周，格子太小点不中），每天一格。颜色 = 那天打的游戏（几个游戏时从圆心按首数比例分扇形），深浅 = 一共打了几首
+// 出勤日历：最近 26 周（手机 15 周，圆点太小点不中），每天一个圆点。颜色 = 那天打的游戏（几个游戏时从圆心按首数比例分扇形），深浅 = 一共打了几首（分段见下面的 level）
 const narrowMq = window.matchMedia('(max-width: 600px)');
 narrowMq.addEventListener?.('change', () => render());
 const dayKey = (ms) => new Date(ms).toDateString();

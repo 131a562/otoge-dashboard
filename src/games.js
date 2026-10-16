@@ -1,7 +1,8 @@
 // 三个游戏的历史记录（otoge-history 里的 <游戏>/<名字>.json）→ 面板要显示的数据
 // 记录格式见各书签工程的 README「历史记录」：obs = 观测记录（src 'b' 成绩扫描 / 'p' プレイ履歴），snaps = Rating 快照
 // 面板只看「这段时间里哪些谱面的最佳分数提高了、提高了多少」，不做书签那样逐次的推分判定和账号 Rating 推算
-import { norm, timeMs, lastRunOf } from './common.js';
+// 版本号（?v=N）沿用 app.js 带过来的，见 app.js 开头
+const { norm, timeMs, lastRunOf } = await import('./common.js' + new URL(import.meta.url).search);
 
 const num = (x) => x.toLocaleString('en-US');
 const fmtAch = (a) => (a / 10000).toFixed(4) + '%';
