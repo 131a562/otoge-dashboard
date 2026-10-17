@@ -40,11 +40,34 @@ $('#copy-link').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(link); $('#copy-note').textContent = '已复制'; } catch (e) { prompt('复制这个链接：', link); }
 });
 
-// ---- 时间段 ----
-let days = store.get('days', 30);
+// ---- 时间段：最近 7 / 30 / 90 天、全部，或自选（从某天到某天，两头都包含）----
+let days = store.get('days', 30); // 0 = 全部，-1 = 自选
+const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const dayMs = (s) => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(+m[1], m[2] - 1, +m[3]).getTime() : NaN; };
+// 自选的日期：第一次点「自选」时默认是最近 30 天
+let custom = store.get('custom', null);
+if (!custom || !(dayMs(custom.from) <= dayMs(custom.to))) custom = { from: ymd(new Date(Date.now() - 29 * DAY)), to: ymd(new Date()) };
 const periodBtns = [...document.querySelectorAll('#period button')];
-const markPeriod = () => periodBtns.forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.days === days)));
+const fromInput = $('#range-from'), toInput = $('#range-to');
+const markPeriod = () => {
+  periodBtns.forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.days === days)));
+  $('#custom-range').hidden = days !== -1;
+  fromInput.value = custom.from;
+  toInput.value = custom.to;
+};
 periodBtns.forEach((b) => b.addEventListener('click', () => { days = +b.dataset.days; store.set('days', days); markPeriod(); render(); }));
+// 改了任意一个日期就重新统计；清空了的那个不算数（恢复原来的值）。
+// 开始改到了结束之后（或结束改到了开始之前）时，另一头跟着移到同一天，不对调（对调会把刚选的日期挪走）
+const onRange = (e) => {
+  let from = fromInput.value || custom.from, to = toInput.value || custom.to;
+  if (dayMs(from) > dayMs(to)) { if (e && e.target === toInput) from = to; else to = from; }
+  custom = { from, to };
+  store.set('custom', custom);
+  markPeriod();
+  render();
+};
+fromInput.addEventListener('change', onRange);
+toInput.addEventListener('change', onRange);
 markPeriod();
 
 // ---- 读取 ----
@@ -74,8 +97,19 @@ async function load(names) {
 }
 
 // ---- 显示 ----
-const periodStart = () => (days ? Date.now() - days * DAY : -Infinity);
-const periodLabel = () => (days ? days + ' 天' : '累计');
+// 当前的时间段：start〜end（毫秒，end 为 Infinity 表示到现在）；label 用在「Rating · 30 天变化」，inText 用在「30 天内没有推分」
+function period() {
+  if (days === -1) {
+    const s = new Date(dayMs(custom.from)), e = new Date(dayMs(custom.to));
+    const thisYear = new Date().getFullYear();
+    const f = (d) => (s.getFullYear() !== thisYear || e.getFullYear() !== thisYear ? d.getFullYear() + '/' : '') + (d.getMonth() + 1) + '/' + d.getDate();
+    const label = custom.from === custom.to ? f(s) : f(s) + '–' + f(e);
+    return { start: s.getTime(), end: e.getTime() + DAY - 1, label: label + ' ', inText: label + ' 期间' };
+  }
+  const label = days ? days + ' 天' : '累计';
+  return { start: days ? Date.now() - days * DAY : -Infinity, end: Infinity, label, inText: label + '内' };
+}
+const inPeriod = (ms, P) => ms >= P.start && ms <= P.end;
 const dateText = (t) => (t ? t.slice(0, 10) : '—');
 const ago = (t) => {
   if (!t) return '';
@@ -83,13 +117,14 @@ const ago = (t) => {
   return d <= 0 ? '今天' : d + ' 天前';
 };
 
-// 这段时间里 Rating 的变化：现在的值 − 时间段开始前最后一个值（没有的话用这段时间里的第一个值）
+// 这段时间里 Rating 的变化：时间段结束时的值 − 开始前最后一个值（开始前没有记录的话用这段时间里的第一个值）
 function ratingDelta(a) {
   const s = a.series;
   if (s.length < 2) return null;
-  const start = periodStart();
-  const before = s.filter((p) => p.ms < start).pop() || s[0];
-  return s[s.length - 1].r - before.r;
+  const P = period();
+  const before = s.filter((p) => p.ms < P.start).pop() || s[0];
+  const after = s.filter((p) => p.ms <= P.end).pop();
+  return after ? after.r - before.r : null;
 }
 const fmtDelta = (game, d) => {
   if (d == null) return '';
@@ -111,14 +146,14 @@ function cardHtml(r) {
   if (r.status === 'error') return `${head}<div class="err">读取失败：${esc(r.error)}</div>`;
   const a = r.a;
   if (!a.since) return `${head}<div class="empty">还没有记录（或是书签旧版本的记录）。运行一次书签后再来看。</div>`;
-  const start = periodStart();
-  const imp = a.improved(start);
+  const P = period();
+  const imp = a.improved(P.start, P.end);
   const pushed = imp.filter((x) => !x.first);
-  const plays = a.plays.filter((ms) => ms >= start).length;
+  const plays = a.plays.filter((ms) => inPeriod(ms, P)).length;
   const stale = a.lastRun && Date.now() - timeMs(a.lastRun) > 14 * DAY;
   return head +
     `<div class="rating num">${a.rating ? esc(a.rating.text) : '—'}${a.rating ? fmtDelta(game, ratingDelta(a)) : ''}</div>` +
-    `<div class="small muted">${a.rating ? 'Rating · ' + periodLabel() + '变化' : '还没有 Rating 快照'}</div>` +
+    `<div class="small muted">${a.rating ? 'Rating · ' + P.label + '变化' : '还没有 Rating 快照'}</div>` +
     `<dl class="kv num">` +
     (a.rating ? a.rating.sub.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('') : '') +
     (a.rating && a.milestones.next ? `<dt>下一个里程碑</dt><dd>${esc(game.fmtRating(a.milestones.next.value))}（还差 ${esc(fmtGap(game, a.milestones.next.gap))}）</dd>` : '') +
@@ -134,15 +169,16 @@ function cardHtml(r) {
 
 // 一个游戏的 Rating 走势（按天取当天最后的值，画阶梯线）
 function trendSvg(game, a) {
-  const start = periodStart();
+  const P = period(), start = P.start;
   const byDay = new Map();
   a.series.forEach((p) => { const d = new Date(p.ms); byDay.set(d.toDateString(), p); });
   const daily = [...byDay.values()];
   const anchor = daily.filter((p) => p.ms < start).pop();
-  const pts = (anchor ? [{ ms: start, r: anchor.r }] : []).concat(daily.filter((p) => p.ms >= start));
+  const pts = (anchor ? [{ ms: start, r: anchor.r }] : []).concat(daily.filter((p) => inPeriod(p.ms, P)));
   if (pts.length < 2) return `<div class="small muted" style="padding:16px 0">这段时间的记录还不够画图（要有两天以上的 Rating 记录）</div>`;
   const W = 600, H = 120, L = 4, R = 4, T = 14, B = 16;
-  const x0 = pts[0].ms, x1 = Math.max(Date.now(), pts[pts.length - 1].ms);
+  // 右端：自选时到结束那天（结束那天还没过完就到现在），否则到现在
+  const x0 = pts[0].ms, x1 = Math.max(Math.min(Date.now(), P.end), pts[pts.length - 1].ms);
   const lo = Math.min(...pts.map((p) => p.r)), hi = Math.max(...pts.map((p) => p.r));
   // 没有变化时线画在中间（上下范围只是为了画图撑开的，标签写实际的值）
   const flat = hi - lo < 1e-9;
@@ -155,7 +191,7 @@ function trendSvg(game, a) {
   const fmt = game.fmtRating;
   const lbl = md;
   // 这段时间达成的里程碑：画在当天那一级台阶上
-  const reached = a.milestones.list.filter((m) => m.ms >= start);
+  const reached = a.milestones.list.filter((m) => inPeriod(m.ms, P));
   const sameDay = (p, t) => new Date(p).toDateString() === new Date(t).toDateString();
   const dots = reached.map((m) => {
     const p = pts.filter((q) => q.ms <= m.ms || sameDay(q.ms, m.ms)).pop() || pts[0];
@@ -215,9 +251,9 @@ function sessionHtml(x) {
     ` <span class="muted small">${hm(x.start)}–${hm(x.end)}</span></div><div class="s-games small num">${games.join('')}</div></li>`;
 }
 function sessionsHtml(ok) {
-  const start = periodStart();
-  const list = sessionsOf(ok).filter((x) => x.end >= start).reverse();
-  if (!list.length) return `<div class="push-head"><b>出勤记录</b></div><div class="empty">${periodLabel()}内没有记录到游玩</div>`;
+  const P = period();
+  const list = sessionsOf(ok).filter((x) => x.end >= P.start && x.start <= P.end).reverse();
+  if (!list.length) return `<div class="push-head"><b>出勤记录</b></div><div class="empty">${P.inText}没有记录到游玩</div>`;
   const total = list.reduce((n, x) => n + [...x.games.values()].reduce((s, v) => s + v, 0), 0);
   const N = 10;
   return `<div class="push-head"><b>出勤记录</b><span class="small num">${list.length} 次 · 共 ${total} 首 · 平均每次 ${Math.round(total / list.length)} 首</span></div>` +
@@ -280,7 +316,8 @@ function calendarHtml(ok) {
 function pushHtml(r) {
   const { game } = r;
   const a = r.a;
-  const imp = a.improved(periodStart());
+  const P = period();
+  const imp = a.improved(P.start, P.end);
   const pushed = imp.filter((x) => !x.first);
   const fresh = imp.filter((x) => x.first);
   // 各谱面提高的分数加起来没有意义，标题行只写这段时间账号 Rating 的变化（和卡片上的相同）
@@ -294,7 +331,7 @@ function pushHtml(r) {
     (arr.length > n ? `<details><summary>其余 ${arr.length - n} 首</summary><ul class="list">${arr.slice(n).map(li).join('')}</ul></details>` : '');
   return `<div class="push-head"><b style="color:${game.color}">${esc(game.label)}</b>` +
     `<span class="small num">${pushed.length} 个谱面推分${delta != null ? ' · 账号 Rating ' + fmtDelta(game, delta) : ''}</span></div>` +
-    (pushed.length ? listOf(pushed, 15) : `<div class="empty">${periodLabel()}内没有推分</div>`) +
+    (pushed.length ? listOf(pushed, 15) : `<div class="empty">${P.inText}没有推分</div>`) +
     (fresh.length ? `<div class="sub-h">新打的谱面 ${fresh.length} 首</div>` + listOf(fresh, 5) : '');
 }
 

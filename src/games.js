@@ -92,8 +92,8 @@ export const GAMES = [
     diffColor: (d) => ({ EXPERT: '#e3374c', MASTER: '#9b3fd6', LUNATIC: '#d6336c' }[d] || '#888'),
     score: (o) => o.s, fmtScore: num, fmtGain: (g) => '+' + num(g),
     fmtRating: (r) => Number(r).toFixed(3),
-    // 里程碑：每 0.5 一次
-    scale: 1000, tiers: [[Infinity, 500]],
+    // 里程碑：17.000 以下每 0.5 一次，17.000 以上每 0.1 一次
+    scale: 1000, tiers: [[17000, 500], [Infinity, 100]],
     ratingSub: (s) => {
       const p = (i) => (s.parts ? (s.parts[i] / 1000).toFixed(3) : '—');
       return [['新曲枠', p(0)], ['ベスト枠', p(1)], ['P-SCORE枠', p(2)]];

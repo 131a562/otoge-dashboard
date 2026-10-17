@@ -46,6 +46,13 @@
   .chips button { padding: 5px 14px; border-radius: 999px; font-size: 14px; }
   .chips button[aria-pressed=true] { background: var(--ink); color: var(--card); border-color: var(--ink); }
 
+  /* 自选时间段 */
+  .range { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 12px; padding: 10px 16px; }
+  .range label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+  /* 16px：iPhone 上输入框字小于 16px 时，点开会自动放大页面 */
+  .range input[type=date] { font: inherit; font-size: 16px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--soft); color: var(--ink); min-width: 0; }
+
   /* 游戏卡片 */
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
   .card { border-top: 4px solid var(--c); }
@@ -145,8 +152,14 @@
         <button type="button" data-days="30">30 天</button>
         <button type="button" data-days="90">90 天</button>
         <button type="button" data-days="0">全部</button>
+        <button type="button" data-days="-1">自选</button>
       </span>
     </h2>
+    <div id="custom-range" class="panel range" hidden>
+      <label>从 <input type="date" id="range-from"></label>
+      <label>到 <input type="date" id="range-to"></label>
+      <span class="small muted">两头的日期都包含在内</span>
+    </div>
     <div class="cards" id="cards"></div>
 
     <h2>出勤</h2>
@@ -167,6 +180,6 @@
   </footer>
 </main>
 <!-- 版本号 v：每次上传新版本时加 1，手机就会下载新脚本，不会继续用缓存里的旧版（见 README「部署」） -->
-<script type="module" src="src/app.js?v=4"></script>
+<script type="module" src="src/app.js?v=5"></script>
 </body>
 </html>
