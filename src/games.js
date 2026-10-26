@@ -195,5 +195,6 @@ export function analyze(game, raw) {
     b50Snaps: snaps.filter((s) => (s.best || []).length || (s.news || []).length),
     get b50Snap() { return this.b50Snaps[this.b50Snaps.length - 1] || null; },
     playerName: hist.name || '',
+    rawObs: obs, // 起点之后的观测记录（音击的 B50 图从成绩扫描里取プラチナスコア）
   };
 }

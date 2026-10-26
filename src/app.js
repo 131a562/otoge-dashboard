@@ -397,7 +397,7 @@ async function showB50(index) {
   $('#b50-actions').hidden = true;
   try {
     const { renderB50 } = await import('./b50.js' + V);
-    const out = await renderB50(r.game, snap, player, (t) => { if (seq === viewerSeq) $('#b50-status').textContent = t; });
+    const out = await renderB50(r.game, snap, player, (t) => { if (seq === viewerSeq) $('#b50-status').textContent = t; }, r.a.rawObs);
     // 生成期间换了时间点或关了窗口：这张图作废
     if (seq !== viewerSeq || viewer.hidden) { URL.revokeObjectURL(out.url); return; }
     viewerUrl = out.url;
