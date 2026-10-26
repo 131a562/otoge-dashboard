@@ -121,6 +121,27 @@
   .push-head > b { white-space: nowrap; }
   .sg .delta { margin-left: 2px; font-size: inherit; }
 
+  /* B50 图 */
+  .b50-btn { width: 100%; margin-top: 12px; font-size: 14px; font-weight: 600; }
+  body.no-scroll { overflow: hidden; }
+  #b50-viewer { position: fixed; inset: 0; z-index: 50; background: #0f0e14; overflow: auto;
+    -webkit-overflow-scrolling: touch; padding: 12px 12px 32px; }
+  #b50-viewer .bar { position: sticky; top: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    max-width: 1080px; margin: 0 auto 10px; padding: 8px 0; background: #0f0e14; color: #f3f1f8; }
+  #b50-viewer .bar b { flex: 1 1 auto; min-width: 0; font-size: 15px; }
+  #b50-viewer .bar a, #b50-viewer .bar button { text-decoration: none; font-size: 14px; padding: 7px 14px; border-radius: 8px;
+    border: 1px solid #3a3745; background: #24222d; color: #f3f1f8; cursor: pointer; }
+  #b50-viewer .bar .primary { background: #5b4bdb; border-color: #5b4bdb; font-weight: 600; }
+  /* 时间点：手机上单独占一行（标题 / 时间点 / 按钮各一行），电脑上排在标题后面 */
+  #b50-viewer .snap-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #c9c5d6; }
+  #b50-snap { font: inherit; font-size: 16px; padding: 6px 8px; border-radius: 8px; border: 1px solid #3a3745;
+    background: #24222d; color: #f3f1f8; max-width: 100%; }
+  @media (max-width: 600px) { #b50-viewer .snap-pick { flex: 1 1 100%; order: 3; } #b50-snap { flex: 1; min-width: 0; } }
+  #b50-status { max-width: 1080px; margin: 0 auto 10px; color: #c9c5d6; font-size: 13px; }
+  #b50-img { display: block; width: 100%; max-width: 1080px; height: auto; margin: 0 auto; border-radius: 8px;
+    -webkit-touch-callout: default; }
+  #b50-img:not([src]) { display: none; }
+
   footer { margin-top: 32px; font-size: 12px; color: var(--muted); }
   footer p { margin: 4px 0; }
 </style>
@@ -179,7 +200,20 @@
     <p>第一次记录（起点）之前的成绩不知道，所以时间段早于起点时，从起点开始比较。</p>
   </footer>
 </main>
+<div id="b50-viewer" role="dialog" aria-modal="true" aria-labelledby="b50-title" hidden>
+  <div class="bar">
+    <b id="b50-title">B50</b>
+    <label class="snap-pick">时间点 <select id="b50-snap" aria-label="选择哪一次的 B50"></select></label>
+    <span id="b50-actions" hidden>
+      <button type="button" id="b50-share" class="primary" hidden>分享 / 存到相册</button>
+      <a id="b50-download" class="primary" href="#">下载图片</a>
+    </span>
+    <button type="button" id="b50-close">关闭</button>
+  </div>
+  <div id="b50-status"></div>
+  <img id="b50-img" alt="B50 图">
+</div>
 <!-- 版本号 v：每次上传新版本时加 1，手机就会下载新脚本，不会继续用缓存里的旧版（见 README「部署」） -->
-<script type="module" src="src/app.js?v=5"></script>
+<script type="module" src="src/app.js?v=6"></script>
 </body>
 </html>

@@ -190,5 +190,10 @@ export function analyze(game, raw) {
     chartCount: charts.size,
     improved,
     milestones: milestones(game, series),
+    // B50 图用：所有带曲目列表的快照（按时间从早到晚；书签每次运行、B50 有变化时存一个），
+    // 默认用最后一个；以及游戏里的玩家名
+    b50Snaps: snaps.filter((s) => (s.best || []).length || (s.news || []).length),
+    get b50Snap() { return this.b50Snaps[this.b50Snaps.length - 1] || null; },
+    playerName: hist.name || '',
   };
 }

@@ -164,7 +164,8 @@ function cardHtml(r) {
     `<div class="stat"><b>${plays}</b><span>记录到的游玩</span></div>` +
     `<div class="stat"><b>${pushed.length}</b><span>推分谱面</span></div>` +
     `<div class="stat"><b>${imp.length - pushed.length}</b><span>新打的谱面</span></div>` +
-    `</div>`;
+    `</div>` +
+    (a.b50Snap ? `<button type="button" class="b50-btn" data-game="${game.id}">查看 B50 图（${a.b50Snap.t.slice(5)}）</button>` : '');
 }
 
 // 一个游戏的 Rating 走势（按天取当天最后的值，画阶梯线）
@@ -345,6 +346,82 @@ function render() {
       `<span class="muted num">${r.a.rating ? esc(r.a.rating.text) : ''}</span></div>${trendSvg(r.game, r.a)}</div>`).join('')
     : '<div class="small muted">没有可显示的记录</div>';
   $('#pushes').innerHTML = ok.map((r) => `<div class="panel">${pushHtml(r)}</div>`).join('');
+}
+
+// ---- B50 图：点卡片上的按钮，用快照画图（src/b50.js），可以下载或分享 ----
+// 默认用最后一个快照；窗口上方的下拉框可以换成以前的任意一个快照（书签每次运行、B50 有变化时存一个）
+const viewer = $('#b50-viewer');
+const snapSelect = $('#b50-snap');
+let viewerUrl = null;
+let viewerGame = null; // 当前窗口里是哪个游戏（results 里的一项）
+const releaseImage = () => {
+  if (viewerUrl) { URL.revokeObjectURL(viewerUrl); viewerUrl = null; }
+  $('#b50-img').removeAttribute('src');
+};
+const closeViewer = () => {
+  viewer.hidden = true;
+  document.body.classList.remove('no-scroll');
+  viewerGame = null;
+  releaseImage();
+};
+$('#b50-close').addEventListener('click', closeViewer);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !viewer.hidden) closeViewer(); });
+$('#cards').addEventListener('click', (e) => {
+  const btn = e.target.closest('.b50-btn');
+  if (!btn) return;
+  const r = results.find((x) => x.game.id === btn.dataset.game);
+  if (!r || !r.a || !r.a.b50Snap) return;
+  closeViewer();
+  viewerGame = r;
+  viewer.hidden = false;
+  document.body.classList.add('no-scroll');
+  // 下拉框：新的在上面，「2026/10/18 20:00 · 15.55」
+  const snaps = r.a.b50Snaps;
+  snapSelect.innerHTML = snaps.map((s, i) => `<option value="${i}">${esc(s.t)} · ${esc(r.game.fmtRating(s.r))}` +
+    `${i === snaps.length - 1 ? '（最新）' : ''}</option>`).reverse().join('');
+  snapSelect.value = String(snaps.length - 1);
+  snapSelect.disabled = snaps.length < 2;
+  showB50(snaps.length - 1);
+});
+snapSelect.addEventListener('change', () => { if (viewerGame) showB50(+snapSelect.value); });
+
+let viewerSeq = 0;
+async function showB50(index) {
+  const r = viewerGame;
+  const snap = r.a.b50Snaps[index];
+  const seq = ++viewerSeq;
+  const player = r.a.playerName || r.name;
+  releaseImage();
+  $('#b50-title').textContent = `${r.game.label} B50`;
+  $('#b50-status').textContent = '准备中…';
+  $('#b50-actions').hidden = true;
+  try {
+    const { renderB50 } = await import('./b50.js' + V);
+    const out = await renderB50(r.game, snap, player, (t) => { if (seq === viewerSeq) $('#b50-status').textContent = t; });
+    // 生成期间换了时间点或关了窗口：这张图作废
+    if (seq !== viewerSeq || viewer.hidden) { URL.revokeObjectURL(out.url); return; }
+    viewerUrl = out.url;
+    $('#b50-img').src = out.url;
+    // 文件名带快照的日期和时刻（同一天可能有几个快照），例如 chunithm-b50-INDEX.01-20261018-2000.png
+    const stamp = snap.t.replace(/\//g, '').replace(' ', '-').replace(':', '');
+    const fileName = `${r.game.id}-b50-${cleanAccount(player).replace(/[^\w.-]+/g, '_') || 'player'}-${stamp}.png`;
+    const dl = $('#b50-download');
+    dl.href = out.url;
+    dl.download = fileName;
+    // 支持分享文件的浏览器（iPhone 的 Safari / Chrome、安卓 Chrome）显示「分享 / 存到相册」
+    const file = new File([out.blob], fileName, { type: 'image/png' });
+    const share = $('#b50-share');
+    share.hidden = !(navigator.canShare && navigator.canShare({ files: [file] }));
+    share.onclick = () => navigator.share({ files: [file] }).catch(() => {});
+    $('#b50-actions').hidden = false;
+    $('#b50-status').textContent = [
+      '手机上也可以长按图片保存。',
+      out.missing ? `${out.missing} 首曲绘没加载出来（显示 NO IMAGE）。` : '',
+      out.dbError || '',
+    ].filter(Boolean).join(' ');
+  } catch (err) {
+    if (seq === viewerSeq) $('#b50-status').textContent = '生成失败：' + err.message;
+  }
 }
 
 // 手机上没有悬停提示：点日历的格子在下面显示那天的内容
