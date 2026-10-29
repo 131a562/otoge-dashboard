@@ -5,6 +5,7 @@
 // 数据：快照（书签运行时的 BEST 30 / NEW 20：[曲目id:难度, 曲名, 分数, 单曲 Rating×100, 标记]）
 const V = new URL(import.meta.url).search;
 const { loadJson, loadImg, FONT } = await import('./b50.js' + V);
+const { LX_JACKET } = await import('./cn.js' + V);
 
 const DB_URL = 'https://otoge-db.net/chunithm/data/music-ex.json';
 const JACKET_URL = 'https://otoge-db.net/chunithm/jacket/';
@@ -115,16 +116,26 @@ function card(g, s, label, x, y) {
   g.textAlign = 'left';
 }
 
+// game.cn（国服，从水鱼 / 落雪导入）：快照的行末尾有国服定数和曲目 ID（[…, 定数, 曲目 ID]），不读日服的定数表，曲绘用落雪的
 export async function renderChunithm(game, snap, name, onStatus = () => {}) {
-  onStatus('正在读取定数表…');
+  const cn = !!game.cn;
   let list = [], dbError = '';
-  try { list = await loadJson(DB_URL); } catch (e) { dbError = '  ·  定数表读取失败'; }
+  if (!cn) {
+    onStatus('正在读取定数表…');
+    try { list = await loadJson(DB_URL); } catch (e) { dbError = '  ·  定数表读取失败'; }
+  }
   const byId = new Map(list.map((m) => [String(m.id), m]));
   const byTitle = new Map(list.map((m) => [m.title, m]));
   // 快照的一行 → 书签 card() 用的数据。定数未公开时按等级估算（14+ → 14.5，图上加 *），同书签的 enrich
   const toSong = (e) => {
     const [id, d] = String(e[0]).split(':');
     const diff = +d;
+    if (cn) {
+      return {
+        title: e[1], diff, score: e[2], lamp: e[4] || '', rating: e[3] != null ? e[3] / 100 : 0,
+        constant: e[5] > 0 ? e[5] : 0, estimated: false, jacket: e[6] != null ? LX_JACKET.chunithm(e[6]) : null,
+      };
+    }
     const key = (DIFFS[diff] || DIFFS[3]).key;
     const m = byId.get(id) || byTitle.get(e[1]);
     let c = m ? parseFloat(m['lev_' + key + '_i']) : NaN, estimated = false;
@@ -158,7 +169,7 @@ export async function renderChunithm(game, snap, name, onStatus = () => {}) {
   const nAvg = news.length ? sum(news) / news.length : 0;
   const total = (sum(best) + sum(news)) / 50;
   // 玩家名：书签用 CHUNITHM-NET 上的原样（全角）
-  header(g, 'CHUNITHM  RATING  BEST 50', String(name || ''));
+  header(g, cn ? '中二节奏（国服）  RATING  BEST 50' : 'CHUNITHM  RATING  BEST 50', String(name || ''));
   const rx = W - PAD;
   stat(g, 'RATING', snap.r ? Number(snap.r).toFixed(2) : floor2(total), rx, '#ffd65a', true);
   stat(g, 'NEW 20 AVG', floor2(nAvg), rx - 260, '#7ee0ff');
@@ -179,7 +190,9 @@ export async function renderChunithm(game, snap, name, onStatus = () => {}) {
   section('NEW 20', news, '#7ee0ff');
   // 页脚：书签写生成日期，这里写快照的时间（可能是以前的快照）
   g.fillStyle = '#ffffff66'; g.font = '13px ' + FONT;
-  g.fillText(snap.t + ' 运行查分书签时的 B50  ·  otoge-dashboard  ·  data: CHUNITHM-NET / otoge-db  ·  * = 定数未公開（推定）' + dbError, PAD, H - 20);
+  g.fillText(cn
+    ? snap.t + ' 从' + (snap.src || '水鱼 / 落雪') + '导入时的 B50（按单曲 Rating 计算）  ·  otoge-dashboard  ·  data: ' + (snap.src || '') + ' / 曲绘：落雪' + (snap.ver ? '  ·  NEW 20：' + snap.ver : '')
+    : snap.t + ' 运行查分书签时的 B50  ·  otoge-dashboard  ·  data: CHUNITHM-NET / otoge-db  ·  * = 定数未公開（推定）' + dbError, PAD, H - 20);
 
   onStatus('正在生成图片…');
   const blob = await new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error('图片生成失败'))), 'image/png'));

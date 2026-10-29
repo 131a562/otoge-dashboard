@@ -39,12 +39,27 @@
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   #names .row { margin-top: 10px; }
+  body.cn #names form { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; }
   @media (max-width: 720px) { #names form { grid-template-columns: 1fr; } }
 
   /* 时间段 */
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .chips button { padding: 5px 14px; border-radius: 999px; font-size: 14px; }
   .chips button[aria-pressed=true] { background: var(--ink); color: var(--card); border-color: var(--ink); }
+
+  /* 日服 / 国服：body 上的 class 决定显示哪些部分 */
+  body.cn .jp-only, body:not(.cn) .cn-only { display: none !important; }
+  #server { margin-top: 4px; }
+  #cn-import { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .import-row { flex-wrap: nowrap; }
+  .import-row select, .import-row input { font: inherit; font-size: 16px; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--soft); color: var(--ink); min-width: 0; }
+  .import-row input { flex: 1 1 auto; }
+  .import-row button { white-space: nowrap; }
+  label.inline { display: inline-flex; align-items: center; gap: 4px; flex-direction: row !important; }
+  #cn-status { margin-top: 6px; min-height: 1.2em; }
+  #cn-status.err { color: #d6336c; }
+  @media (max-width: 720px) { .import-row { flex-wrap: wrap; } .import-row select, .import-row button { flex: 1 1 auto; } }
 
   /* 自选时间段 */
   .range { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 12px; padding: 10px 16px; }
@@ -148,18 +163,43 @@
 </head>
 <body>
 <main>
-  <h1>音游查分面板</h1>
-  <div class="muted small">CHUNITHM / maimai DX / オンゲキ 查分书签同步到云端的记录</div>
+  <div class="row" style="justify-content:space-between">
+    <h1>音游查分面板</h1>
+    <!-- 日服：三个查分书签同步的记录；国服：从水鱼 / 落雪查分器导入的记录 -->
+    <span class="chips" id="server" role="group" aria-label="服务器">
+      <button type="button" data-server="jp">日服</button>
+      <button type="button" data-server="cn">国服</button>
+    </span>
+  </div>
+  <div class="muted small" id="subtitle">CHUNITHM / maimai DX / オンゲキ 查分书签同步到云端的记录</div>
 
   <section id="names" class="panel">
     <form id="name-form">
-      <label><b>CHUNITHM</b>同步名字<input type="text" name="chunithm" autocomplete="off" placeholder="不玩可以留空"></label>
-      <label><b>maimai DX</b>同步名字<input type="text" name="maimai" autocomplete="off" placeholder="不玩可以留空"></label>
-      <label><b>オンゲキ</b>同步名字<input type="text" name="ongeki" autocomplete="off" placeholder="不玩可以留空"></label>
+      <label class="jp-only"><b>CHUNITHM</b>同步名字<input type="text" name="chunithm" autocomplete="off" placeholder="不玩可以留空"></label>
+      <label class="jp-only"><b>maimai DX</b>同步名字<input type="text" name="maimai" autocomplete="off" placeholder="不玩可以留空"></label>
+      <label class="jp-only"><b>オンゲキ</b>同步名字<input type="text" name="ongeki" autocomplete="off" placeholder="不玩可以留空"></label>
+      <label class="cn-only"><b>舞萌DX（国服）</b>同步名字<input type="text" name="maimai-cn" autocomplete="off" placeholder="不玩可以留空"></label>
+      <label class="cn-only"><b>中二节奏（国服）</b>同步名字<input type="text" name="chunithm-cn" autocomplete="off" placeholder="不玩可以留空"></label>
       <button class="primary" type="submit">查看</button>
     </form>
+    <!-- 国服：从水鱼 / 落雪导入（只在点按钮时导入）。Token 只发给水鱼 / 落雪，不经过同步服务 -->
+    <div id="cn-import" class="cn-only">
+      <div class="row import-row">
+        <select id="cn-source" aria-label="从哪个查分器导入">
+          <option value="df">水鱼查分器</option>
+          <option value="lx">落雪查分器</option>
+        </select>
+        <input type="password" id="cn-token" autocomplete="off" placeholder="Token">
+        <button type="button" id="cn-import-btn" class="primary">从水鱼导入</button>
+      </div>
+      <div class="row small muted">
+        <label class="inline"><input type="checkbox" id="cn-remember"> 在这个浏览器记住 Token</label>
+        <span id="cn-token-help"></span>
+      </div>
+      <div class="small" id="cn-status"></div>
+    </div>
     <div class="row small muted">
-      <span>只填自己玩的游戏就行，其余留空。填书签第一次同步时填的名字（默认是游戏里的玩家名）。名字会记在这个浏览器里。</span>
+      <span id="names-help">只填自己玩的游戏就行，其余留空。填书签第一次同步时填的名字（默认是游戏里的玩家名）。名字会记在这个浏览器里。</span>
       <button type="button" id="copy-link" class="small">复制我的面板链接</button>
       <span id="copy-note"></span>
     </div>
@@ -183,9 +223,12 @@
     </div>
     <div class="cards" id="cards"></div>
 
-    <h2>出勤</h2>
-    <div class="panel" id="calendar"></div>
-    <div class="panel" id="sessions" style="margin-top:12px"></div>
+    <!-- 出勤要用游玩记录，国服（水鱼 / 落雪只有最好成绩）没有，切到国服时隐藏 -->
+    <div class="jp-only">
+      <h2>出勤</h2>
+      <div class="panel" id="calendar"></div>
+      <div class="panel" id="sessions" style="margin-top:12px"></div>
+    </div>
 
     <h2>Rating 走势</h2>
     <div class="panel" id="trends"></div>
@@ -195,8 +238,9 @@
   </div>
 
   <footer>
-    <p>出勤按游玩时间划分，相隔 3 小时以上算下一次；书签只记 EXPERT 以上的游玩。每次出勤的 Rating 变化要等出勤后运行过书签才有。</p>
-    <p>数据只在书签运行时记录：游玩次数只统计记录到的プレイ履歴（两次运行之间打了 50 首以上时，较早的会漏掉）；推分按每个谱面这段时间里的最佳分数和之前的最佳比较。</p>
+    <p class="cn-only">国服的记录从水鱼 / 落雪查分器导入：只有每个谱面的最好成绩，没有游玩记录，所以没有出勤和游玩次数；Rating 走势、推分、里程碑按每次导入的时间记。B50 按导入时的单曲 rating 和新旧曲算。</p>
+    <p class="jp-only">出勤按游玩时间划分，相隔 3 小时以上算下一次；书签只记 EXPERT 以上的游玩。每次出勤的 Rating 变化要等出勤后运行过书签才有。</p>
+    <p class="jp-only">数据只在书签运行时记录：游玩次数只统计记录到的プレイ履歴（两次运行之间打了 50 首以上时，较早的会漏掉）；推分按每个谱面这段时间里的最佳分数和之前的最佳比较。</p>
     <p>第一次记录（起点）之前的成绩不知道，所以时间段早于起点时，从起点开始比较。</p>
   </footer>
 </main>
@@ -214,6 +258,6 @@
   <img id="b50-img" alt="B50 图">
 </div>
 <!-- 版本号 v：每次上传新版本时加 1，手机就会下载新脚本，不会继续用缓存里的旧版（见 README「部署」） -->
-<script type="module" src="src/app.js?v=7"></script>
+<script type="module" src="src/app.js?v=8"></script>
 </body>
 </html>

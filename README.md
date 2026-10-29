@@ -16,16 +16,35 @@
 
 推分只比较每个谱面「时间段开始前的最佳」和「时间段结束时的最佳」，不做书签「历史走势」页那样逐次的推分判定、标记变化和账号 Rating 推算，所以不需要下载定数表。时间段早于第一次记录（起点）时，从起点那次的成绩扫描开始比较。
 
+## 国服（水鱼 / 落雪导入）
+
+标题右边的「日服 / 国服」切换。国服是舞萌DX 和中二节奏的国服成绩，从**水鱼查分器**或**落雪查分器（LXNS）**导入，存进 otoge-history 的 `maimai-cn/<名字>.json` / `chunithm-cn/<名字>.json`（记录格式和对应的日服书签一样，所以总览、Rating 走势、里程碑、推分、B50 图都能用）。国服没有音击。
+
+- **导入**：选查分器、填 Token，点「从水鱼导入」/「从落雪导入」，maimai 和中二都会导入（查分器上没有成绩的游戏跳过）。只在点按钮时导入，不会自动导入。
+  - 水鱼：Token 在「编辑个人资料 → 成绩导入 Token」，接口是 `GET /api/{maimaidxprober|chunithmprober}/player/records`（请求头 `Import-Token`）。
+  - 落雪：Token 在「账号详情 → 个人 API 密钥」，接口是 `GET /api/v0/user/{maimai|chunithm}/player/scores` 和 `…/player`（请求头 `X-User-Token`）。
+  - Token 只在浏览器里直接发给水鱼 / 落雪，**不经过 otoge-sync**；勾了「在这个浏览器记住 Token」才存在这个浏览器里（按查分器分开存）。这个 Token 有读写权限，别发给别人。
+- **同步名字**：国服记录存在云端用的名字，和日服的名字分开记。留空时导入会自动用水鱼 / 落雪上的玩家名。
+- **每次导入记什么**：和书签运行一次一样。有变化（新谱面、分数或 FC/AP、FS/FDX、DX 分提高）的谱面记一条成绩扫描；再记一个 Rating 快照：Rating 用查分器上的值，B50 按查分器给的单曲 rating 排（maimai 旧曲 35 + 新曲 15，中二旧曲 30 + 新曲 20），每一行还存了国服定数和曲目 ID。同一天和上一次一模一样时不重复记快照。
+  - 新旧曲：水鱼 maimai 用曲目数据的 `is_new`，水鱼中二用 `latest_version` 给的版本；落雪 maimai 是最新版本（`song/list` 的最后一个版本），落雪中二是最新的两个版本（和水鱼一致）。
+  - 宴谱、WORLD'S END 不导入。
+- **国服隐藏的部分**：出勤日历、出勤记录、游玩次数（水鱼 / 落雪只有最好成绩，没有游玩记录）。推分、走势的时间是导入的时间，不是实际打歌的时间；第一次导入的那一分钟当作起点。
+- **国服的 B50 图**：用对应日服书签的样式，定数用快照里存的国服定数，曲绘用落雪的（`assets2.lxns.net`），标题写国服最新版本。
+- **同一个名字只用一个查分器**：同一个同步名字下混着导入水鱼和落雪，成绩会合在一起（取最好），B50 快照按每次导入的那个查分器算。
+- 同步服务只允许查分面板写入这两个国服文件夹，日服的仍然只读（见 `../otoge-sync/DEPLOY.md`）。
+- **SBGA TOOL（songs）**：服务器选「国服」时读同一份国服记录，谱面卡上显示国服成绩；名字默认用这里记住的国服名字（同一个网站）。
+
 ## 文件
 
 - `index.html`：页面和样式
 - `src/app.js`：名字输入、读取、显示
 - `src/games.js`：三个游戏的记录格式 → 面板的数据（Rating、走势、游玩次数、推分谱面）
 - `src/b50.js`：B50 图的共用部分（定数表、曲绘的读取，按游戏分派）
+- `src/cn.js`：国服导入（水鱼 / 落雪 → 历史记录格式 → 合并后写进 otoge-sync 的 maimai-cn / chunithm-cn）
 - `src/b50-chunithm.js` / `src/b50-maimai.js` / `src/b50-ongeki.js`：三个游戏的 B50 图，各自照搬对应书签的样式（改书签的样式时这里也要跟着改）
 - `src/common.js`：共用工具（名字的统一写法、读取 otoge-sync）
 - `src/config.js`：otoge-sync 的地址
-- `test/serve.mjs` + `test/mock-data.mjs`：本地预览
+- `test/serve.mjs` + `test/mock-data.mjs`：本地预览；`test/mock-cn.mjs`：模拟的水鱼 / 落雪（国服导入的测试）
 
 ## 本地预览
 
@@ -38,16 +57,17 @@ node otoge-dashboard/test/serve.mjs
 - 5180 是面板，5181 运行真正的 `../otoge-sync/worker.js`（GitHub 用内存模拟），预置了三个游戏 60 天的模拟记录，名字都是 `TESTER`。跨域访问和线上一样走 Worker 的只读来源（`VIEWER_ORIGINS`）。
 - `?chunithm=ＺＥＮＫＡＫＵ`：测试 chuni-b50 旧版本按全角保存的名字
 - `?sync=` 只接受 localhost 的地址，线上页面不会被别人的链接指到别的服务
+- 国服导入：http://localhost:5180/?sync=http://localhost:5181&cnapi=http://localhost:5181&server=cn ，水鱼的 Token 填 `df-test`、落雪的填 `lx-test`（别的值会返回 Token 错误）。水鱼 maimai 用水鱼公开的测试成绩，其余随机生成；曲目数据第一次用到时从真的水鱼 / 落雪下载（要联网）。打开 http://localhost:5181/__cnbump 模拟又打了一次（部分谱面分数提高），隔一分钟以上再导入就能看到推分。`?cnapi=` 也只接受 localhost
 
 ## 部署
 
-1. **更新 otoge-sync**（加了查分面板的只读来源）：Cloudflare → `otoge-sync` → Edit code，粘贴 `../otoge-sync/worker.js` 的全部内容 → Deploy。不需要新的变量。
+1. **更新 otoge-sync**（加了查分面板的只读来源；之后又加了国服的 maimai-cn / chunithm-cn 文件夹，面板可以写入这两个。改过 `worker.js` 都要重新粘贴部署一次）：Cloudflare → `otoge-sync` → Edit code，粘贴 `../otoge-sync/worker.js` 的全部内容 → Deploy。不需要新的变量。
    - 检查：`https://otoge-sync.131a562-index01.workers.dev/health` 仍然是 `"ok": true`
 2. 在 GitHub 新建一个**公开**仓库 `otoge-dashboard`，把本文件夹的内容推上去（不含数据，只有网页）。
 3. 仓库 Settings → Pages → Source 选 `Deploy from a branch`，分支 `main`，目录 `/ (root)`。
 4. 一两分钟后打开 `https://131a562.github.io/otoge-dashboard/`。
 
-**以后每次更新**：先把 `index.html` 最后的 `src/app.js?v=7` 里的数字加 1，再把改过的文件和 `index.html` 一起上传。手机浏览器会长时间缓存脚本，刷新也不一定重新下载；版本号变了，脚本地址就变了，手机一定会下载新的。`app.js` 会把同样的版本号带给 `config.js`、`common.js`、`games.js`，这几个文件不用改。`index.html` 本身最多缓存 10 分钟。
+**以后每次更新**：先把 `index.html` 最后的 `src/app.js?v=8` 里的数字加 1，再把改过的文件和 `index.html` 一起上传。手机浏览器会长时间缓存脚本，刷新也不一定重新下载；版本号变了，脚本地址就变了，手机一定会下载新的。`app.js` 会把同样的版本号带给 `config.js`、`common.js`、`games.js`，这几个文件不用改。`index.html` 本身最多缓存 10 分钟。
 
 Worker 只允许 `https://131a562.github.io` 这个来源读（`VIEWER_ORIGINS`），不允许写。用户名或域名不一样时，改 `../otoge-sync/worker.js` 里的 `VIEWER_ORIGINS` 再部署一次。
 

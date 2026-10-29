@@ -44,8 +44,10 @@ export const loadImg = (src) => new Promise((resolve) => {
 
 // game：games.js 的 GAMES 之一；snap：快照；name：玩家名；obs：观测记录（maimai 取 FS/FDX、DX 分，音击取プラチナスコア）
 // 返回 { blob, url, missing（没加载出来的曲绘数）, dbError }
+// 国服（game.cn，从水鱼 / 落雪导入）用对应的日服样式画，定数用快照里存的国服定数，曲绘用落雪的
 export async function renderB50(game, snap, name, onStatus = () => {}, obs = []) {
-  if (game.id === 'chunithm') return (await import('./b50-chunithm.js' + V)).renderChunithm(game, snap, name, onStatus);
-  if (game.id === 'maimai') return (await import('./b50-maimai.js' + V)).renderMaimai(game, snap, name, obs, onStatus);
+  const id = game.base || game.id;
+  if (id === 'chunithm') return (await import('./b50-chunithm.js' + V)).renderChunithm(game, snap, name, onStatus);
+  if (id === 'maimai') return (await import('./b50-maimai.js' + V)).renderMaimai(game, snap, name, obs, onStatus);
   return (await import('./b50-ongeki.js' + V)).renderOngeki(game, snap, name, obs, onStatus);
 }
