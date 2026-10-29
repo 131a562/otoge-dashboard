@@ -1,8 +1,8 @@
 // 版本号：index.html 用 src/app.js?v=N 加载这个文件，这里把同样的 ?v=N 带给其他模块。
 // 手机浏览器会长时间缓存脚本，刷新也不一定重新下载；地址变了就一定会下载新的（每次上传改 index.html 里的 N）
 const V = new URL(import.meta.url).search;
-const [{ SYNC_URL: DEFAULT_SYNC }, { cleanAccount, legacyAccount, fetchHist, timeMs }, { GAMES, GAMES_CN, baseOf, analyze }, CN] = await Promise.all([
-  import('./config.js' + V), import('./common.js' + V), import('./games.js' + V), import('./cn.js' + V),
+const [{ SYNC_URL: DEFAULT_SYNC }, { cleanAccount, legacyAccount, fetchHist, timeMs }, { GAMES, analyze }] = await Promise.all([
+  import('./config.js' + V), import('./common.js' + V), import('./games.js' + V),
 ]);
 
 const $ = (s) => document.querySelector(s);
@@ -16,63 +16,26 @@ const params = new URLSearchParams(location.search);
 const SYNC_URL = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(params.get('sync') || '') ? params.get('sync') : DEFAULT_SYNC;
 const DAY = 864e5;
 
-// ---- 服务器：日服 = 三个查分书签同步的记录；国服 = 从水鱼 / 落雪查分器导入的记录（maimai-cn / chunithm-cn）----
-// 网址参数 ?server=cn（分享的链接）优先，其次是这个浏览器记住的
-let server = params.get('server') === 'cn' ? 'cn' : params.get('server') === 'jp' ? 'jp' : store.get('server', 'jp');
-const gamesNow = () => (server === 'cn' ? GAMES_CN : GAMES);
-const namesKey = () => (server === 'cn' ? 'names-cn' : 'names');
-function applyServer() {
-  document.body.classList.toggle('cn', server === 'cn');
-  document.querySelectorAll('#server button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.server === server)));
-  $('#subtitle').textContent = server === 'cn'
-    ? '舞萌DX / 中二节奏 国服：从水鱼 / 落雪查分器导入的记录'
-    : 'CHUNITHM / maimai DX / オンゲキ 查分书签同步到云端的记录';
-  $('#names-help').textContent = server === 'cn'
-    ? '同步名字是国服记录存在云端用的名字，留空时导入会自动用水鱼 / 落雪上的玩家名。名字会记在这个浏览器里。'
-    : '只填自己玩的游戏就行，其余留空。填书签第一次同步时填的名字（默认是游戏里的玩家名）。名字会记在这个浏览器里。';
-}
-
-// ---- 名字：网址参数（朋友分享的链接）优先，其次是这个浏览器记住的（日服 / 国服分开记）----
+// ---- 名字：网址参数（朋友分享的链接）优先，其次是这个浏览器记住的 ----
 const form = $('#name-form');
-function fillNames(useUrl) {
-  const fromUrl = useUrl && gamesNow().some((g) => params.get(g.id));
-  const saved = store.get(namesKey(), {});
-  gamesNow().forEach((g) => { form.elements[g.id].value = (fromUrl ? params.get(g.id) : saved[g.id]) || ''; });
-}
+const fromUrl = GAMES.some((g) => params.get(g.id));
+const saved = store.get('names', {});
+GAMES.forEach((g) => { form.elements[g.id].value = (fromUrl ? params.get(g.id) : saved[g.id]) || ''; });
 // 保存和放进网址的是输入的原文；读取时才统一写法（cleanAccount），这样旧版本按全角保存的中二记录也能退回读到
-const currentNames = () => Object.fromEntries(gamesNow().map((g) => [g.id, form.elements[g.id].value.trim()]));
-function setUrl(names) {
-  const q = new URLSearchParams(location.search);
-  [...GAMES, ...GAMES_CN].forEach((g) => q.delete(g.id));
-  gamesNow().forEach((g) => names[g.id] && q.set(g.id, names[g.id]));
-  if (server === 'cn') q.set('server', 'cn'); else q.delete('server');
-  history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
-}
+const currentNames = () => Object.fromEntries(GAMES.map((g) => [g.id, form.elements[g.id].value.trim()]));
 
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   const names = currentNames();
-  store.set(namesKey(), names);
-  setUrl(names);
+  store.set('names', names);
+  const q = new URLSearchParams(params);
+  GAMES.forEach((g) => (names[g.id] ? q.set(g.id, names[g.id]) : q.delete(g.id)));
+  history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
   load(names);
 });
-document.querySelectorAll('#server button').forEach((b) => b.addEventListener('click', () => {
-  if (b.dataset.server === server) return;
-  server = b.dataset.server;
-  store.set('server', server);
-  applyServer();
-  fillNames(false);
-  results = [];
-  $('#board').hidden = true;
-  $('#copy-note').textContent = '';
-  const names = currentNames();
-  setUrl(names);
-  if (gamesNow().some((g) => cleanAccount(names[g.id]))) load(names);
-}));
 $('#copy-link').addEventListener('click', async () => {
   const q = new URLSearchParams();
   Object.entries(currentNames()).forEach(([k, v]) => v && q.set(k, v));
-  if (server === 'cn') q.set('server', 'cn');
   const link = location.origin + location.pathname + (q.toString() ? '?' + q : '');
   try { await navigator.clipboard.writeText(link); $('#copy-note').textContent = '已复制'; } catch (e) { prompt('复制这个链接：', link); }
 });
@@ -123,7 +86,7 @@ async function loadOne(game, input) {
   }
 }
 async function load(names) {
-  const list = gamesNow().filter((g) => cleanAccount(names[g.id]));
+  const list = GAMES.filter((g) => cleanAccount(names[g.id]));
   $('#board').hidden = !list.length;
   // 只玩其中一两个游戏时，其余的名字留空即可；一个都没填时提示一下
   $('#copy-note').textContent = list.length ? '' : '至少填一个游戏的名字';
@@ -165,7 +128,7 @@ function ratingDelta(a) {
 }
 const fmtDelta = (game, d) => {
   if (d == null) return '';
-  const digits = { chunithm: 2, maimai: 0, ongeki: 3 }[baseOf(game)];
+  const digits = { chunithm: 2, maimai: 0, ongeki: 3 }[game.id];
   const v = Math.round(d * 10 ** digits) / 10 ** digits;
   return `<span class="delta ${v > 0 ? 'up' : 'flat'}">${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(digits)}</span>`;
 };
@@ -179,13 +142,10 @@ function cardHtml(r) {
   const { game, name } = r;
   const head = `<h3>${esc(game.label)}<span>${esc(name)}</span></h3>`;
   if (r.status === 'loading') return `${head}<div class="empty">读取中…</div>`;
-  if (r.status === 'missing') {
-    return `${head}<div class="empty">云端没有「${esc(name)}」的记录。` +
-      (game.cn ? '先用上面的「从水鱼 / 落雪导入」导入一次（同步名字和这里一样）。' : '请确认名字和书签第一次同步时填的一样。') + '</div>';
-  }
+  if (r.status === 'missing') return `${head}<div class="empty">云端没有「${esc(name)}」的记录。请确认名字和书签第一次同步时填的一样。</div>`;
   if (r.status === 'error') return `${head}<div class="err">读取失败：${esc(r.error)}</div>`;
   const a = r.a;
-  if (!a.since) return `${head}<div class="empty">还没有记录（或是书签旧版本的记录）。${game.cn ? '导入' : '运行一次书签'}后再来看。</div>`;
+  if (!a.since) return `${head}<div class="empty">还没有记录（或是书签旧版本的记录）。运行一次书签后再来看。</div>`;
   const P = period();
   const imp = a.improved(P.start, P.end);
   const pushed = imp.filter((x) => !x.first);
@@ -198,11 +158,10 @@ function cardHtml(r) {
     (a.rating ? a.rating.sub.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('') : '') +
     (a.rating && a.milestones.next ? `<dt>下一个里程碑</dt><dd>${esc(game.fmtRating(a.milestones.next.value))}（还差 ${esc(fmtGap(game, a.milestones.next.gap))}）</dd>` : '') +
     `<dt>开始记录</dt><dd>${dateText(a.since)}</dd>` +
-    `<dt>${game.cn ? '最后一次导入' : '最后一次运行书签'}</dt><dd class="${stale ? 'warn' : ''}">${dateText(a.lastRun)}（${ago(a.lastRun)}）</dd>` +
+    `<dt>最后一次运行书签</dt><dd class="${stale ? 'warn' : ''}">${dateText(a.lastRun)}（${ago(a.lastRun)}）</dd>` +
     `</dl>` +
-    // 国服（水鱼 / 落雪）没有游玩记录，不显示游玩次数
-    `<div class="stats num"${game.cn ? ' style="grid-template-columns:repeat(2,1fr)"' : ''}>` +
-    (game.cn ? '' : `<div class="stat"><b>${plays}</b><span>记录到的游玩</span></div>`) +
+    `<div class="stats num">` +
+    `<div class="stat"><b>${plays}</b><span>记录到的游玩</span></div>` +
     `<div class="stat"><b>${pushed.length}</b><span>推分谱面</span></div>` +
     `<div class="stat"><b>${imp.length - pushed.length}</b><span>新打的谱面</span></div>` +
     `</div>` +
@@ -380,11 +339,8 @@ function pushHtml(r) {
 function render() {
   $('#cards').innerHTML = results.map((r) => `<div class="panel card" style="--c:${r.game.color}">${cardHtml(r)}</div>`).join('');
   const ok = results.filter((r) => r.status === 'ok' && r.a.since);
-  // 国服没有游玩记录，出勤那一节隐藏（index.html 的 .jp-only），也不用算
-  if (server !== 'cn') {
-    $('#calendar').innerHTML = ok.length ? calendarHtml(ok) : '<div class="small muted">没有可显示的记录</div>';
-    $('#sessions').innerHTML = ok.length ? sessionsHtml(ok) : '<div class="small muted">没有可显示的记录</div>';
-  }
+  $('#calendar').innerHTML = ok.length ? calendarHtml(ok) : '<div class="small muted">没有可显示的记录</div>';
+  $('#sessions').innerHTML = ok.length ? sessionsHtml(ok) : '<div class="small muted">没有可显示的记录</div>';
   $('#trends').innerHTML = ok.length
     ? ok.map((r) => `<div class="trend"><div class="head"><b style="color:${r.game.color}">${esc(r.game.label)}</b>` +
       `<span class="muted num">${r.a.rating ? esc(r.a.rating.text) : ''}</span></div>${trendSvg(r.game, r.a)}</div>`).join('')
@@ -448,8 +404,7 @@ async function showB50(index) {
     $('#b50-img').src = out.url;
     // 文件名带快照的日期和时刻（同一天可能有几个快照），例如 chunithm-b50-INDEX.01-20261018-2000.png
     const stamp = snap.t.replace(/\//g, '').replace(' ', '-').replace(':', '');
-    // 名字里的中日文保留（\p{L}），只把空格、符号换成 _
-    const fileName = `${r.game.id}-b50-${cleanAccount(player).replace(/[^\p{L}\p{N}._-]+/gu, '_') || 'player'}-${stamp}.png`;
+    const fileName = `${r.game.id}-b50-${cleanAccount(player).replace(/[^\w.-]+/g, '_') || 'player'}-${stamp}.png`;
     const dl = $('#b50-download');
     dl.href = out.url;
     dl.download = fileName;
@@ -478,51 +433,5 @@ $('#calendar').addEventListener('click', (e) => {
   $('#cal-note').textContent = cell.dataset.label;
 });
 
-// ---- 国服导入：从水鱼 / 落雪读完整成绩，换算后写进云端（src/cn.js）。只在点按钮时导入 ----
-// Token 只在这个浏览器里直接发给水鱼 / 落雪；勾了「记住」才存在这个浏览器里（按查分器分开存）
-const cnSource = $('#cn-source'), cnToken = $('#cn-token'), cnRemember = $('#cn-remember'), cnBtn = $('#cn-import-btn');
-const cnStatus = (text, err) => { $('#cn-status').textContent = text; $('#cn-status').classList.toggle('err', !!err); };
-cnSource.value = CN.SOURCES[store.get('cn-source', 'df')] ? store.get('cn-source', 'df') : 'df';
-function showSource() {
-  const src = CN.SOURCES[cnSource.value];
-  const saved = store.get('cn-token-' + cnSource.value, '');
-  cnToken.value = saved;
-  cnRemember.checked = !!saved;
-  cnBtn.textContent = '从' + src.label + '导入';
-  $('#cn-token-help').textContent = 'Token 在哪：' + src.tokenHelp + '。Token 只会发给' + src.label + '，不经过我们的同步服务。';
-}
-cnSource.addEventListener('change', () => { store.set('cn-source', cnSource.value); showSource(); cnStatus(''); });
-cnRemember.addEventListener('change', () => { if (!cnRemember.checked) store.set('cn-token-' + cnSource.value, ''); });
-cnBtn.addEventListener('click', async () => {
-  const source = cnSource.value, token = cnToken.value.trim(), label = CN.SOURCES[source].label;
-  if (!token) { cnStatus('先填' + label + '的 Token', true); return; }
-  store.set('cn-token-' + source, cnRemember.checked ? token : '');
-  cnBtn.disabled = true;
-  const names = currentNames();
-  const lines = [];
-  let fails = 0;
-  for (const g of GAMES_CN) {
-    try {
-      const res = await CN.importGame({ syncUrl: SYNC_URL, source, game: g.base, token, name: names[g.id], onStatus: (t) => cnStatus(t) });
-      if (res.empty) { lines.push(`${g.label}：${label}上没有成绩，跳过`); continue; }
-      if (!names[g.id]) form.elements[g.id].value = res.name; // 名字留空时用水鱼 / 落雪上的玩家名
-      lines.push(`${g.label}：${res.records} 个谱面，新增 ${res.fresh}、提高 ${res.improved}，Rating ${g.fmtRating(res.rating)}` +
-        (res.snapAdded ? '' : '（和今天上一次一样，没有记新快照）'));
-    } catch (e) {
-      fails++;
-      lines.push(`${g.label}：导入失败，${e.message}`);
-    }
-  }
-  cnBtn.disabled = false;
-  cnStatus(lines.join('；'), fails === GAMES_CN.length);
-  const n = currentNames();
-  store.set(namesKey(), n);
-  setUrl(n);
-  if (gamesNow().some((g) => cleanAccount(n[g.id]))) load(n);
-});
-
-applyServer();
-showSource();
-fillNames(true);
 const initial = currentNames();
-if (gamesNow().some((g) => cleanAccount(initial[g.id]))) load(initial);
+if (GAMES.some((g) => cleanAccount(initial[g.id]))) load(initial);

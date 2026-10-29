@@ -101,13 +101,6 @@ export const GAMES = [
   },
 ];
 
-// 国服：从水鱼 / 落雪查分器导入的记录（src/cn.js 写进 otoge-history 的 maimai-cn / chunithm-cn）。
-// 记录格式和对应的日服书签相同，所以统计方法照用日服的；base = 对应的日服游戏，cn = true
-const cnOf = (id, label) => ({ ...GAMES.find((g) => g.id === id), id: id + '-cn', base: id, label, cn: true });
-export const GAMES_CN = [cnOf('maimai', '舞萌DX（国服）'), cnOf('chunithm', '中二节奏（国服）')];
-// 基础游戏（chunithm / maimai / ongeki），国服的按对应的日服算
-export const baseOf = (game) => game.base || game.id;
-
 // 比 u 高的下一个里程碑（整数单位）。tiers = [[上限, 间隔], ...]：u 低于某个上限时按那一段的间隔，
 // 一段的上限本身也是里程碑（例如中二 15.00）
 const nextMark = (tiers, u) => {

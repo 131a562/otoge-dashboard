@@ -6,7 +6,6 @@
 const V = new URL(import.meta.url).search;
 const { norm } = await import('./common.js' + V);
 const { loadJson, loadImg, rrect, fit, FONT } = await import('./b50.js' + V);
-const { LX_JACKET } = await import('./cn.js' + V);
 
 const DB_URL = 'https://otoge-db.net/maimai/data/music-ex.json';
 const JACKET_URL = 'https://otoge-db.net/maimai/jacket/';
@@ -155,15 +154,10 @@ function drawCard(ctx, s, label, x, y, jacket) {
 }
 
 // obs：观测记录（取 FS/FDX、DX 分）
-// game.cn（国服，从水鱼 / 落雪导入）：快照的行末尾有国服定数和曲目 ID（[…, 定数, 曲目 ID]），不读日服的定数表，
-// 曲绘用落雪的，版本名用快照里记的国服最新版本
 export async function renderMaimai(game, snap, name, obs, onStatus = () => {}) {
-  const cn = !!game.cn;
+  onStatus('正在读取定数表…');
   let list = [], dbError = '';
-  if (!cn) {
-    onStatus('正在读取定数表…');
-    try { list = await loadJson(DB_URL); } catch (e) { dbError = '定数表读取失败，定数显示为「?」'; }
-  }
+  try { list = await loadJson(DB_URL); } catch (e) { dbError = '定数表读取失败，定数显示为「?」'; }
   const byImg = new Map(), byTitle = new Map();
   list.forEach((m) => {
     if (m.catcode === '宴会場' || m.lev_utage) return;
@@ -186,16 +180,6 @@ export async function renderMaimai(game, snap, name, obs, onStatus = () => {}) {
   const toSong = (e) => {
     const [key, title, ach, rating, fc, diff, kind, img] = e;
     const [short, dk] = DIFFS[diff] || ['?', 'mas'];
-    if (cn) {
-      const x = extra.get(key) || { sy: '', x: 0, xm: 0 };
-      const a = ach / 10000;
-      return {
-        title, difficulty: diff, diffShort: short, kind, level: '', const: e[8] > 0 ? e[8] : null, const_unknown: false, version: '',
-        achievement: a, rank: RANKS.find(([, b]) => a >= b)[0], fc: fc || '', sync: x.sy,
-        dx_score: x.x, dx_max: x.xm, dx_star: dxStarOf(x.x, x.xm), rating: rating || 0,
-        img: e[9] != null ? LX_JACKET.maimai(e[9]) : null,
-      };
-    }
     const m = (img && byImg.get(img)) || byTitle.get(norm(title));
     const pre = kind === 'DX' ? 'dx_' : '';
     const level = (m && m[pre + 'lev_' + dk]) || '';
@@ -237,9 +221,7 @@ export async function renderMaimai(game, snap, name, obs, onStatus = () => {}) {
     return r.length ? `最高 ${Math.max(...r)} · 最低 ${Math.min(...r)}` : '—';
   };
   const title = `DX Rating ${snap.r || calc}`;
-  const subtitle = cn
-    ? `${snap.src || '查分器'}上的 Rating · 按单曲 rating 合计 ${calc}${diffR === 0 ? '（一致）' : `（差 ${diffR > 0 ? '+' : ''}${diffR}）`} · ${snap.t} 导入时的 B50`
-    : `游戏内 Rating（maimai DX NET）· 按定数计算 ${calc}${diffR === 0 ? '（一致）' : `（差 ${diffR > 0 ? '+' : ''}${diffR}）`} · ${snap.t} 运行查分书签时的 B50`;
+  const subtitle = `游戏内 Rating（maimai DX NET）· 按定数计算 ${calc}${diffR === 0 ? '（一致）' : `（差 ${diffR > 0 ? '+' : ''}${diffR}）`} · ${snap.t} 运行查分书签时的 B50`;
   const stats = [
     ['BEST35', `${parts[1]}`, `${old35.length}曲 · ${maxMin(old35)}`],
     ['NEW15', `${parts[0]}`, `${new15.length}曲 · ${maxMin(new15)}`],
@@ -247,7 +229,7 @@ export async function renderMaimai(game, snap, name, obs, onStatus = () => {}) {
   // 旧曲（BEST35）在上，新曲（NEW15）在下；角标是所在枠的序号（B1〜B35 / N1〜N15）
   const sections = [
     { name: 'BEST35', note: `合计 ${parts[1]}`, rows: old35, prefix: 'B' },
-    { name: 'NEW15', note: `${cn ? snap.ver || '国服最新版本' : newVersions.map(versionName).join(' / ')} · 合计 ${parts[0]}`, rows: new15, prefix: 'N' },
+    { name: 'NEW15', note: `${newVersions.map(versionName).join(' / ')} · 合计 ${parts[0]}`, rows: new15, prefix: 'N' },
   ];
 
   const { W, PAD, COLS, GAP, CH, HEAD, SEC, FOOT, CW } = IMG;
@@ -260,7 +242,7 @@ export async function renderMaimai(game, snap, name, obs, onStatus = () => {}) {
   ctx.textBaseline = 'alphabetic';
   // 头部：左边标题，右边统计
   ctx.fillStyle = C.accent; ctx.font = f(800, 16);
-  ctx.fillText(fit(ctx, `${cn ? '舞萌DX（国服）' + (snap.ver ? ' ' + snap.ver : '') : 'maimai でらっくす ' + versionName(latestVersion)}${name ? '  ·  ' + name : ''}`, 700), PAD, 42);
+  ctx.fillText(fit(ctx, `maimai でらっくす ${versionName(latestVersion)}${name ? '  ·  ' + name : ''}`, 700), PAD, 42);
   ctx.fillStyle = C.fg; ctx.font = f(800, 52); ctx.fillText(fit(ctx, title, 760), PAD, 100);
   ctx.font = f(500, 15); ctx.fillStyle = C.muted; ctx.fillText(fit(ctx, subtitle, 1250), PAD, 132);
   const boxW = 220, boxGap = 10;
@@ -284,9 +266,7 @@ export async function renderMaimai(game, snap, name, obs, onStatus = () => {}) {
     y += rowsOf(sec.rows.length) * (CH + GAP);
   }
   ctx.font = f(500, 13); ctx.fillStyle = C.muted;
-  ctx.fillText(fit(ctx, (cn
-    ? `${snap.t} 从${snap.src || '查分器'}导入的数据  ·  otoge-dashboard  ·  成绩・定数：${snap.src || '水鱼 / 落雪'}  ·  曲绘：落雪`
-    : `${snap.t} 运行查分书签时的数据  ·  otoge-dashboard  ·  成绩：maimai DX NET  ·  定数・曲绘：otoge-db（定数为 ".?" 的还未公开）  ·  AP/AP+ 单曲 rating +1`) +
+  ctx.fillText(fit(ctx, `${snap.t} 运行查分书签时的数据  ·  otoge-dashboard  ·  成绩：maimai DX NET  ·  定数・曲绘：otoge-db（定数为 ".?" 的还未公开）  ·  AP/AP+ 单曲 rating +1` +
     (dbError ? '  ·  ' + dbError : ''), W - PAD * 2), PAD, H - 16);
 
   onStatus('正在生成图片…');
