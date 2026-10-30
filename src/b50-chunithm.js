@@ -6,7 +6,8 @@
 const V = new URL(import.meta.url).search;
 const { loadJson, loadImg, FONT } = await import('./b50.js' + V);
 
-const DB_URL = 'https://otoge-db.net/chunithm/data/music-ex.json';
+// 定数表：先读 SBGA TOOL 每天整理的那份（格式和 otoge-db 一样，定数和书签 / SBGA TOOL 统一），读不到时退回 otoge-db
+const DB_URL = ['https://131a562.github.io/sbga-tool/data/feed/chunithm-music-ex.json', 'https://otoge-db.net/chunithm/data/music-ex.json'];
 const JACKET_URL = 'https://otoge-db.net/chunithm/jacket/';
 const DIFFS = [
   { key: 'bas', short: 'BAS', color: '#22bb5b' },

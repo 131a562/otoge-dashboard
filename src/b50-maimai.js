@@ -7,7 +7,8 @@ const V = new URL(import.meta.url).search;
 const { norm } = await import('./common.js' + V);
 const { loadJson, loadImg, rrect, fit, FONT } = await import('./b50.js' + V);
 
-const DB_URL = 'https://otoge-db.net/maimai/data/music-ex.json';
+// 定数表：先读 SBGA TOOL 每天整理的那份（格式和 otoge-db 一样，定数和书签 / SBGA TOOL 统一），读不到时退回 otoge-db
+const DB_URL = ['https://131a562.github.io/sbga-tool/data/feed/maimai-music-ex.json', 'https://otoge-db.net/maimai/data/music-ex.json'];
 const JACKET_URL = 'https://otoge-db.net/maimai/jacket/';
 const IMG = { W: 1800, PAD: 28, COLS: 5, GAP: 10, CH: 124, HEAD: 168, SEC: 44, FOOT: 40 };
 IMG.CW = Math.floor((IMG.W - IMG.PAD * 2 - IMG.GAP * (IMG.COLS - 1)) / IMG.COLS);

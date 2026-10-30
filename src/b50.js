@@ -9,13 +9,17 @@
 const V = new URL(import.meta.url).search;
 
 // ---- 定数表 ----
+// 传一个地址数组时按顺序试，第一个读得到的为准（SBGA TOOL 整理的定数表 → 原来的来源）
 const dbCache = new Map();
-export const loadJson = (url) => {
-  if (!dbCache.has(url)) {
-    dbCache.set(url, fetch(url).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .catch((e) => { dbCache.delete(url); throw e; }));
+const fetchJson = (url) => fetch(url).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then((j) => { if (!Array.isArray(j) || j.length < 100) throw new Error('内容不对'); return j; });
+export const loadJson = (urls) => {
+  const key = [].concat(urls).join(' ');
+  if (!dbCache.has(key)) {
+    const p = [].concat(urls).reduce((acc, url) => acc.catch(() => fetchJson(url)), Promise.reject(new Error('没有地址')));
+    dbCache.set(key, p.catch((e) => { dbCache.delete(key); throw e; }));
   }
-  return dbCache.get(url);
+  return dbCache.get(key);
 };
 
 // ---- 画图的辅助函数 ----
