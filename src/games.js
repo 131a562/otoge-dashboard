@@ -53,7 +53,7 @@ export const GAMES = [
     },
     diffName: (d) => ['BAS', 'ADV', 'EXP', 'MAS', 'ULT'][d] || '?',
     diffColor: (d) => ['#22bb5b', '#e8a10a', '#e3374c', '#9b3fd6', '#555'][d] || '#888',
-    score: (o) => o.s, fmtScore: num, fmtGain: (g) => '+' + num(g),
+    score: (o) => o.s, lamp: (o) => o.l, lamps: ['FC', 'AJ', 'AJC'], fmtScore: num, fmtGain: (g) => '+' + num(g),
     fmtRating: (r) => Number(r).toFixed(2),
     // 里程碑（整数单位 = Rating × scale，避免浮点误差）：15.00 以下每 0.5 一次，15.00 以上每 0.1 一次
     scale: 100, tiers: [[1500, 50], [Infinity, 10]],
@@ -66,7 +66,7 @@ export const GAMES = [
     keyOf: maimaiKey,
     diffName: (d) => ({ EXPERT: 'EXP', MASTER: 'MAS', 'Re:MASTER': 'ReM' }[d] || d),
     diffColor: (d) => ({ EXPERT: '#e3374c', MASTER: '#9b3fd6', 'Re:MASTER': '#c17be0' }[d] || '#888'),
-    score: (o) => o.a, fmtScore: fmtAch, fmtGain: (g) => '+' + (g / 10000).toFixed(4) + '%',
+    score: (o) => o.a, lamp: (o) => o.fc, lamps: ['FC', 'FC+', 'AP', 'AP+'], fmtScore: fmtAch, fmtGain: (g) => '+' + (g / 10000).toFixed(4) + '%',
     fmtRating: (r) => String(r),
     // 里程碑：16000 以下每 500 一次，16000 以上每 100 一次
     scale: 1, tiers: [[16000, 500], [Infinity, 100]],
@@ -90,7 +90,7 @@ export const GAMES = [
     },
     diffName: (d) => ({ EXPERT: 'EXP', MASTER: 'MAS', LUNATIC: 'LUN' }[d] || d),
     diffColor: (d) => ({ EXPERT: '#e3374c', MASTER: '#9b3fd6', LUNATIC: '#d6336c' }[d] || '#888'),
-    score: (o) => o.s, fmtScore: num, fmtGain: (g) => '+' + num(g),
+    score: (o) => o.s, lamp: (o) => o.l, lamps: ['FC', 'AB', 'AB+'], fmtScore: num, fmtGain: (g) => '+' + num(g),
     fmtRating: (r) => Number(r).toFixed(3),
     // 里程碑：17.000 以下每 0.5 一次，17.000 以上每 0.1 一次
     scale: 1000, tiers: [[17000, 500], [Infinity, 100]],
@@ -146,10 +146,11 @@ export function analyze(game, raw) {
       // 第一次出现就是游戏标了 NEW RECORD 的游玩，也当作新打的：第一次打一定是 NEW RECORD，
       // 而以前打过的谱面一般早就被扫描记下了（例如中二早期的扫描没读 ULTIMA，第一次读到的 ULTIMA 就是这种情况）
       const firstNr = o.src === 'p' && !!o.nr;
-      charts.set(key, { title: norm(o.n) + (suffix ? '（' + suffix + '）' : ''), d: o.d, kind, pts: [],
-        fresh: !unsure && (isNew(o) || firstNr), unsure });
+      // ref：记录里的写法（曲名、难度、键），跳到 SBGA TOOL 的曲目页时用
+      charts.set(key, { key, title: norm(o.n) + (suffix ? '（' + suffix + '）' : ''), d: o.d, kind, pts: [],
+        fresh: !unsure && (isNew(o) || firstNr), unsure, ref: { n: o.n, d: o.d, kd: kind || o.kd, k: o.k } });
     }
-    charts.get(key).pts.push({ ms: timeMs(o.t), v: game.score(o) });
+    charts.get(key).pts.push({ ms: timeMs(o.t), t: o.t, v: game.score(o), lamp: game.lamp(o) || '', src: o.src });
   });
 
   // startMs 之后最佳分数提高了的谱面。起点（第一次记录）之前不知道成绩，所以比较的基准最早是起点那次的成绩扫描；
@@ -171,7 +172,7 @@ export function analyze(game, raw) {
       if (before == null && !c.fresh) before = c.pts[0].v;
       if (after == null || (before != null && after <= before)) return;
       out.push({
-        title: c.title, diff: game.diffName(c.d) + (c.kind ? ' ' + c.kind : ''), diffColor: game.diffColor(c.d),
+        key: c.key, title: c.title, diff: game.diffName(c.d) + (c.kind ? ' ' + c.kind : ''), diffColor: game.diffColor(c.d),
         from: before, to: after, gain: before == null ? 0 : after - before, first: before == null, at,
       });
     });
@@ -189,6 +190,9 @@ export function analyze(game, raw) {
     plays: obs.filter((o) => o.src === 'p').map((o) => timeMs(o.t)),
     chartCount: charts.size,
     improved,
+    // 某个谱面（记录里的写法 { n, d, kd, k }）的全部记录，没有时 null
+    chart: (o) => charts.get(keyOf(o).key) || null,
+    chartByKey: (key) => charts.get(key) || null,
     milestones: milestones(game, series),
     // B50 图用：所有带曲目列表的快照（按时间从早到晚；书签每次运行、B50 有变化时存一个），
     // 默认用最后一个；以及游戏里的玩家名

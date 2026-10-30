@@ -142,13 +142,38 @@
     -webkit-touch-callout: default; }
   #b50-img:not([src]) { display: none; }
 
+  /* 推分列表：点一行打开谱面记录 */
+  ul.list li.go { cursor: pointer; }
+  ul.list li.go .title { color: inherit; text-decoration: none; }
+  ul.list li.go:hover .title { color: var(--accent); }
+
+  /* 谱面记录 */
+  #chart-viewer { position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, .45); overflow: auto;
+    -webkit-overflow-scrolling: touch; padding: 24px 12px 32px; }
+  #chart-viewer .panel { max-width: 640px; margin: 0 auto; }
+  .chart-head { display: flex; gap: 8px; align-items: flex-start; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  #chart-title { flex: 1 1 auto; min-width: 0; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+  #chart-title .badge { vertical-align: 2px; }
+  #chart-close { flex: none; padding: 5px 12px; font-size: 14px; }
+  .chart-best { margin: 10px 0 4px; }
+  .chart-best b { font-size: 24px; }
+  .lamp { font-size: 12px; font-weight: 700; color: var(--good); }
+  .best-svg { display: block; width: 100%; height: 90px; margin-top: 6px; }
+  ul.recs { margin-top: 8px; }
+  ul.recs li { grid-template-columns: auto minmax(0, 1fr) auto auto; font-size: 14px; }
+  .sbga-link { display: block; margin-top: 14px; padding: 9px 12px; border-radius: 8px; background: var(--soft);
+    color: var(--accent); text-decoration: none; font-weight: 600; font-size: 14px; }
+  .site-nav { margin-left: auto; font-size: 13px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+  .site-head { display: flex; align-items: baseline; gap: 12px; }
+
   footer { margin-top: 32px; font-size: 12px; color: var(--muted); }
   footer p { margin: 4px 0; }
 </style>
 </head>
 <body>
 <main>
-  <h1>音游查分面板</h1>
+  <div class="site-head"><h1>音游查分面板</h1>
+    <a class="site-nav" href="https://131a562.github.io/sbga-tool/" title="曲目资料：定数、容错、谱面确认">SBGA TOOL（曲目资料）→</a></div>
   <div class="muted small">CHUNITHM / maimai DX / オンゲキ 查分书签同步到云端的记录</div>
 
   <section id="names" class="panel">
@@ -213,7 +238,13 @@
   <div id="b50-status"></div>
   <img id="b50-img" alt="B50 图">
 </div>
+<div id="chart-viewer" role="dialog" aria-modal="true" aria-labelledby="chart-title" hidden>
+  <div class="panel">
+    <div class="chart-head"><div id="chart-title"></div><button type="button" id="chart-close">关闭</button></div>
+    <div id="chart-body"></div>
+  </div>
+</div>
 <!-- 版本号 v：每次上传新版本时加 1，手机就会下载新脚本，不会继续用缓存里的旧版（见 README「部署」） -->
-<script type="module" src="src/app.js?v=10"></script>
+<script type="module" src="src/app.js?v=11"></script>
 </body>
 </html>

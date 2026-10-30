@@ -1,7 +1,7 @@
 // 版本号：index.html 用 src/app.js?v=N 加载这个文件，这里把同样的 ?v=N 带给其他模块。
 // 手机浏览器会长时间缓存脚本，刷新也不一定重新下载；地址变了就一定会下载新的（每次上传改 index.html 里的 N）
 const V = new URL(import.meta.url).search;
-const [{ SYNC_URL: DEFAULT_SYNC }, { cleanAccount, legacyAccount, fetchHist, timeMs }, { GAMES, analyze }] = await Promise.all([
+const [{ SYNC_URL: DEFAULT_SYNC, SBGA_URL }, { cleanAccount, legacyAccount, fetchHist, timeMs }, { GAMES, analyze }] = await Promise.all([
   import('./config.js' + V), import('./common.js' + V), import('./games.js' + V),
 ]);
 
@@ -94,6 +94,7 @@ async function load(names) {
   results = list.map((game) => ({ game, name: cleanAccount(names[game.id]), status: 'loading' }));
   render();
   await Promise.all(list.map(async (game, i) => { results[i] = await loadOne(game, names[game.id]); render(); }));
+  chartFromUrl();
 }
 
 // ---- 显示 ----
@@ -323,8 +324,9 @@ function pushHtml(r) {
   const fresh = imp.filter((x) => x.first);
   // 各谱面提高的分数加起来没有意义，标题行只写这段时间账号 Rating 的变化（和卡片上的相同）
   const delta = ratingDelta(a);
-  const li = (x) => `<li><span class="badge" style="background:${x.diffColor}">${esc(x.diff)}</span>` +
-    `<span class="title" title="${esc(x.title)}">${esc(x.title)}</span>` +
+  // 点一行打开这个谱面的记录（见下面的「谱面记录」）
+  const li = (x) => `<li class="go" data-game="${game.id}" data-key="${esc(x.key)}"><span class="badge" style="background:${x.diffColor}">${esc(x.diff)}</span>` +
+    `<a class="title" href="${esc(chartHref(game, a.chartByKey(x.key).ref))}" title="${esc(x.title)}">${esc(x.title)}</a>` +
     (x.first ? `<span class="num">${esc(game.fmtScore(x.to))}</span>`
       : `<span class="gain num">${esc(game.fmtGain(x.gain))}</span><span class="fromto num">${esc(game.fmtScore(x.from))} → ${esc(game.fmtScore(x.to))}</span>`) +
     `</li>`;
@@ -423,6 +425,118 @@ async function showB50(index) {
     if (seq === viewerSeq) $('#b50-status').textContent = '生成失败：' + err.message;
   }
 }
+
+// ---- 谱面记录：点推分列表里的一行，或者从 SBGA TOOL 曲目页的「我的成绩」跳过来 ----
+// 网址里的谱面用历史记录里的写法：game、title（曲名）、diff（难度，中二是 0〜4）、kind（maimai 的 DX / STD）、
+// artist（音击同名曲的艺术家）。和 SBGA TOOL 的 dashLink 相同
+const CHART_PARAMS = ['game', 'title', 'diff', 'kind', 'artist'];
+function chartHref(game, ref) {
+  // 网址里原有的其他参数（本地测试的 sync 等）保留
+  const q = new URLSearchParams(location.search);
+  CHART_PARAMS.forEach((k) => q.delete(k));
+  Object.entries(currentNames()).forEach(([k, v]) => (v ? q.set(k, v) : q.delete(k)));
+  q.set('game', game.id);
+  q.set('title', ref.n);
+  q.set('diff', ref.d);
+  if (ref.kd) q.set('kind', ref.kd);
+  const extra = game.id === 'ongeki' ? String(ref.k || '').split('|')[2] : null;
+  if (extra) q.set('artist', extra);
+  return '?' + q;
+}
+// SBGA TOOL 按曲名、难度找到曲目页（#/游戏/find，见 SBGA TOOL 的 route）
+function sbgaHref(game, ref) {
+  const q = new URLSearchParams({ title: ref.n, diff: ref.d });
+  if (ref.kd) q.set('kind', ref.kd);
+  if (game.id === 'ongeki' && ref.k) q.set('k', ref.k);
+  return `${SBGA_URL}#/${game.id}/find?${q}`;
+}
+const chartViewer = $('#chart-viewer');
+function closeChart() {
+  if (chartViewer.hidden) return;
+  chartViewer.hidden = true;
+  document.body.classList.remove('no-scroll');
+  const q = new URLSearchParams(location.search);
+  CHART_PARAMS.forEach((k) => q.delete(k));
+  history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
+}
+// 最佳分数的变化画成阶梯线（刷新过最佳时才画）
+function bestSvg(game, ups) {
+  if (ups.length < 2) return '';
+  const W = 600, H = 90, T = 10, B = 10;
+  const x0 = ups[0].ms, x1 = Math.max(ups[ups.length - 1].ms, x0 + 1);
+  const lo = ups[0].v, hi = ups[ups.length - 1].v;
+  const X = (ms) => ((ms - x0) / (x1 - x0)) * W;
+  const Y = (v) => T + (1 - (v - lo) / (hi - lo || 1)) * (H - T - B);
+  let d = '';
+  ups.forEach((p, i) => { d += i ? `H${X(p.ms).toFixed(1)}V${Y(p.v).toFixed(1)}` : `M0 ${Y(p.v).toFixed(1)}`; });
+  return `<svg class="best-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="最佳分数的变化">
+    <path d="${d}" fill="none" stroke="${game.color}" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg>
+    <div class="row small muted num" style="justify-content:space-between"><span>${md(x0)}</span><span>${esc(game.fmtScore(lo))} → ${esc(game.fmtScore(hi))}</span><span>${md(x1)}</span></div>`;
+}
+function chartHtml(r, c, ref) {
+  const { game } = r;
+  const link = `<a class="sbga-link" href="${esc(sbgaHref(game, ref))}">在 SBGA TOOL 看这个谱面（定数、容错、谱面确认）→</a>`;
+  if (r.status !== 'ok') return `<div class="empty">${r.status === 'loading' ? '读取中…' : '读不到这个游戏的记录'}</div>${link}`;
+  if (!c) return `<div class="empty">记录里没有这个谱面的成绩（书签只记 EXPERT 以上、起点 ${dateText(r.a.since)} 之后记录到的成绩）。</div>${link}`;
+  // 每次刷新最佳分数的记录（第一条是第一次记录到的成绩）
+  const ups = [];
+  c.pts.forEach((p) => { if (!ups.length || p.v > ups[ups.length - 1].v) ups.push({ p, ms: p.ms, v: p.v, gain: ups.length ? p.v - ups[ups.length - 1].v : null }); });
+  const upOf = new Map(ups.map((u) => [u.p, u]));
+  const best = ups[ups.length - 1];
+  // 最好的灯：所有记录里最高的（灯的高低见 games.js 的 lamps）
+  const lamp = c.pts.reduce((m, p) => (game.lamps.indexOf(p.lamp) > game.lamps.indexOf(m) ? p.lamp : m), '');
+  const plays = c.pts.filter((p) => p.src === 'p').length;
+  const row = (p) => {
+    const up = upOf.get(p);
+    return `<li><span class="num muted">${esc(p.t.slice(2))}</span>` +
+      `<span class="num"><b>${esc(game.fmtScore(p.v))}</b>${p.lamp ? ` <span class="lamp">${esc(p.lamp)}</span>` : ''}</span>` +
+      `<span class="small ${up && up.gain ? 'gain' : 'muted'}">${up ? (up.gain ? esc(game.fmtGain(up.gain)) : '第一次记录') : ''}</span>` +
+      `<span class="small muted">${p.src === 'p' ? '游玩' : '成绩扫描'}</span></li>`;
+  };
+  const list = [...c.pts].reverse();
+  const N = 20;
+  return `<div class="chart-best"><b class="num">${esc(game.fmtScore(best.v))}</b>${lamp ? ` <span class="lamp">${esc(lamp)}</span>` : ''}` +
+    ` <span class="small muted">最佳 · 刷新最佳 ${ups.length - 1} 次 · 记录到的游玩 ${plays} 次</span></div>` +
+    bestSvg(game, ups) +
+    `<ul class="list recs">${list.slice(0, N).map(row).join('')}</ul>` +
+    (list.length > N ? `<details><summary>更早的 ${list.length - N} 条</summary><ul class="list recs">${list.slice(N).map(row).join('')}</ul></details>` : '') +
+    `<div class="small muted" style="margin-top:8px">只有书签运行时记到的成绩：起点 ${dateText(r.a.since)} 之前的成绩、两次运行之间被挤出プレイ履歴的游玩不在这里。</div>` +
+    link;
+}
+function showChart(r, c, ref) {
+  const { game } = r;
+  $('#chart-title').innerHTML = `<span class="badge" style="background:${game.diffColor(ref.d)}">${esc(game.diffName(ref.d) + (ref.kd ? ' ' + ref.kd : ''))}</span> ` +
+    `<span>${esc(c ? c.title : ref.n)}</span>`;
+  $('#chart-body').innerHTML = chartHtml(r, c, ref);
+  chartViewer.hidden = false;
+  document.body.classList.add('no-scroll');
+  chartViewer.scrollTop = 0;
+}
+// 网址里带着谱面（从 SBGA TOOL 跳过来）：读完后打开
+function chartFromUrl() {
+  const q = new URLSearchParams(location.search);
+  const r = results.find((x) => x.game.id === q.get('game'));
+  if (!r || !q.get('title')) return;
+  const d = r.game.id === 'chunithm' ? Number(q.get('diff')) : q.get('diff');
+  const ref = { n: q.get('title'), d, kd: q.get('kind') || undefined };
+  // 音击：书签存的键是「曲名|难度」，同名曲加「|艺术家」（见 games.js 的 keyOf）
+  if (r.game.id === 'ongeki') ref.k = [ref.n, d, q.get('artist')].filter(Boolean).join('|');
+  const c = r.status === 'ok' ? r.a.chart(ref) : null;
+  showChart(r, c, c ? { ...c.ref, kd: c.ref.kd || ref.kd } : ref);
+}
+$('#pushes').addEventListener('click', (e) => {
+  const li = e.target.closest('li.go');
+  if (!li || e.ctrlKey || e.metaKey || e.shiftKey) return; // 按着 Ctrl 等键点：照常在新标签页打开链接
+  const r = results.find((x) => x.game.id === li.dataset.game);
+  const c = r && r.a && r.a.chartByKey(li.dataset.key);
+  if (!c) return;
+  e.preventDefault();
+  history.replaceState(null, '', chartHref(r.game, c.ref));
+  showChart(r, c, c.ref);
+});
+$('#chart-close').addEventListener('click', closeChart);
+chartViewer.addEventListener('click', (e) => { if (e.target === chartViewer) closeChart(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeChart(); });
 
 // 手机上没有悬停提示：点日历的格子在下面显示那天的内容
 $('#calendar').addEventListener('click', (e) => {
