@@ -301,7 +301,7 @@ export async function renderOngeki(game, snap, name, obs, onStatus = () => {}) {
     y += rowsOf(sec.rows.length) * (CH + GAP);
   }
   ctx.font = f(500, 13); ctx.fillStyle = C.muted;
-  ctx.fillText(fit(ctx, `${snap.t} 运行查分书签时的数据  ·  otoge-dashboard  ·  估算值（仅 EXP/MAS/LUN），与游戏内会有少许出入  ·  定数・曲绘：reiwa.f5.si（定数后带 "?" 为未确定）` +
+  ctx.fillText(fit(ctx, `${snap.t} 运行查分书签时的数据  ·  SBGA DASHBOARD  ·  估算值（仅 EXP/MAS/LUN），与游戏内会有少许出入  ·  定数・曲绘：reiwa.f5.si（定数后带 "?" 为未确定）` +
     (dbError ? '  ·  ' + dbError : ''), W - PAD * 2), PAD, H - 16);
 
   onStatus('正在生成图片…');

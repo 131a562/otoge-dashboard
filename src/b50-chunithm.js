@@ -180,7 +180,7 @@ export async function renderChunithm(game, snap, name, onStatus = () => {}) {
   section('NEW 20', news, '#7ee0ff');
   // 页脚：书签写生成日期，这里写快照的时间（可能是以前的快照）
   g.fillStyle = '#ffffff66'; g.font = '13px ' + FONT;
-  g.fillText(snap.t + ' 运行查分书签时的 B50  ·  otoge-dashboard  ·  data: CHUNITHM-NET / otoge-db  ·  * = 定数未公開（推定）' + dbError, PAD, H - 20);
+  g.fillText(snap.t + ' 运行查分书签时的 B50  ·  SBGA DASHBOARD  ·  data: CHUNITHM-NET / otoge-db  ·  * = 定数未公開（推定）' + dbError, PAD, H - 20);
 
   onStatus('正在生成图片…');
   const blob = await new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error('图片生成失败'))), 'image/png'));

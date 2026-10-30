@@ -267,7 +267,7 @@ export async function renderMaimai(game, snap, name, obs, onStatus = () => {}) {
     y += rowsOf(sec.rows.length) * (CH + GAP);
   }
   ctx.font = f(500, 13); ctx.fillStyle = C.muted;
-  ctx.fillText(fit(ctx, `${snap.t} 运行查分书签时的数据  ·  otoge-dashboard  ·  成绩：maimai DX NET  ·  定数・曲绘：otoge-db（定数为 ".?" 的还未公开）  ·  AP/AP+ 单曲 rating +1` +
+  ctx.fillText(fit(ctx, `${snap.t} 运行查分书签时的数据  ·  SBGA DASHBOARD  ·  成绩：maimai DX NET  ·  定数・曲绘：otoge-db（定数为 ".?" 的还未公开）  ·  AP/AP+ 单曲 rating +1` +
     (dbError ? '  ·  ' + dbError : ''), W - PAD * 2), PAD, H - 16);
 
   onStatus('正在生成图片…');

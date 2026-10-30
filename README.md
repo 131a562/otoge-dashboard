@@ -1,4 +1,6 @@
-# otoge-dashboard 音游查分面板
+# SBGA DASHBOARD（sbga-dashboard）
+
+网址：[https://131a562.github.io/sbga-dashboard/](https://131a562.github.io/sbga-dashboard/)（以前叫 otoge-dashboard / 音游查分面板，旧网址会自动跳到这里，见下面「部署」）
 
 一个网页，填上同步名字就能看 CHUNITHM / maimai DX / オンゲキ 三个游戏的记录总览。数据来自三个查分书签（chuni-b50 / maimai-dx-score / ongeki-score-export）同步到私有仓库 `otoge-history` 的历史记录，经由 `otoge-sync` Worker **只读**取得。
 
@@ -12,7 +14,7 @@
 - **Rating 走势**：每个游戏一张图，按天取当天最后的值。maimai 还包括游玩详情里游戏记录的 Rating（同书签）。
 - **里程碑**：Rating 每涨一档记一次，间隔是 CHUNITHM 15.00 以下每 0.5、15.00 以上每 0.1，maimai DX 16000 以下每 500、16000 以上每 100，オンゲキ 17.000 以下每 0.5、17.000 以上每 0.1（在 `src/games.js` 的 `tiers` 改：`[上限, 间隔]` 按顺序排，单位是 Rating × `scale`；每段的上限本身也算一个里程碑）。走势图上用圆点标出这段时间达成的里程碑，图下列出最近 6 个；卡片上写下一个里程碑和还差多少。起点那次的 Rating 只当出发点，掉下来再涨回去不重复算。
 - **推分**：这段时间里最佳分数提高了的谱面，「之前的最佳 → 现在的最佳」，按提高的多少排序（中二 / 音击是分数，maimai 是达成率）。各谱面提高的分数不加总，标题行写这段时间账号 Rating 的变化（Rating 快照的实际值，和卡片上的相同）。这段时间里第一次打的谱面单独列出。以前没有记录过、第一次读到的就是游戏标了 NEW RECORD 的游玩的谱面（例如中二早期扫描没读到的 ULTIMA）也算新打的：第一次打一定是 NEW RECORD，而以前打过的谱面一般早就被扫描记下了。点一行打开这个谱面的记录（见下面）。
-- **谱面记录**：点推分列表里的一行，或者从 SBGA TOOL 卡片页「我的成绩」的「查分面板里的推分记录 →」跳过来时打开。显示最佳分数和灯（所有记录里最好的）、刷新最佳几次、记录到的游玩几次、最佳分数的变化（刷新过最佳时画阶梯线），以及每一条记录（时间、分数、灯、刷新最佳时提高了多少、来源是游玩还是成绩扫描；新的在上面，超过 20 条时其余的折叠）。只有起点之后书签运行时记到的成绩。最下面的「在 SBGA TOOL 看这个谱面」打开 SBGA TOOL 的曲目页（定数、容错、谱面确认），直接打开那个难度。打开时网址会带上这个谱面（`&game=chunithm&title=曲名&diff=3`，maimai 加 `&kind=DX` / `STD`，音击同名曲加 `&artist=艺术家`；难度写法同历史记录：中二 0〜4，maimai / 音击是难度名），复制下来就能直接打开这个谱面的记录；关闭时去掉。
+- **谱面记录**：点推分列表里的一行，或者从 SBGA TOOL 卡片页「我的成绩」的「SBGA DASHBOARD 里的推分记录 →」跳过来时打开。显示最佳分数和灯（所有记录里最好的）、刷新最佳几次、记录到的游玩几次、最佳分数的变化（刷新过最佳时画阶梯线），以及每一条记录（时间、分数、灯、刷新最佳时提高了多少、来源是游玩还是成绩扫描；新的在上面，超过 20 条时其余的折叠）。只有起点之后书签运行时记到的成绩。最下面的「在 SBGA TOOL 看这个谱面」打开 SBGA TOOL 的曲目页（定数、容错、谱面确认），直接打开那个难度。打开时网址会带上这个谱面（`&game=chunithm&title=曲名&diff=3`，maimai 加 `&kind=DX` / `STD`，音击同名曲加 `&artist=艺术家`；难度写法同历史记录：中二 0〜4，maimai / 音击是难度名），复制下来就能直接打开这个谱面的记录；关闭时去掉。
 - **页头**：右上的「SBGA TOOL（曲目资料）」打开 SBGA TOOL。
 - **B50 图**：每张卡片下面的「查看 B50 图」按钮。用运行查分书签时记下的 B50（历史记录里带曲目列表的 Rating 快照）画图，三个游戏的样式都照搬各自书签原来的 B50 图：CHUNITHM（chuni-b50，深蓝紫渐变背景、难度颜色描边的卡片、右上 RATING / BEST 30 AVG / NEW 20 AVG，宽 1592px）、maimai DX（maimai-dx-score，顶部 DX Rating 和 BEST35 / NEW15 统计框，卡片上有 DX/STD、版本、FC/AP、FS/FDX、DX 星和 DX 分，宽 1800px）、オンゲキ（ongeki-score-export，左边 BEST50 + NEW10，右边一栏 P-SCORE50，宽 2242px）。快照的行里没有的数据从观测记录里按快照当时补上：maimai 的 FS/FDX 和 DX 分（成绩扫描和プレイ履歴里的最好值），音击的プラチナスコア和 ☆（成绩扫描）。和书签的图不同的地方：页脚写快照的时间（不是生成图片的时间），音击的副标题写各枠怎么加起来（面板没有当时读网页的游戏内 Rating）。窗口上方的「时间点」可以换成以前任意一次的 B50：书签每次运行、B50 有变化时会存一个快照，下拉框里列出这个游戏的全部快照（新的在上面，例如「2026/10/18 20:00 · 15.55」），默认是最新的；只能选运行过书签的时间点，开始记录之前的 B50 没有。下载的文件名带快照的日期和时刻（例如 chunithm-b50-INDEX.01-20261018-2000.png）。可以「下载图片」，iPhone / 安卓上还有「分享 / 存到相册」，也可以长按图片保存。不需要运行书签，也不依赖书签的代码；定数和曲绘从 otoge-db（中二、maimai）/ reiwa.f5.si（音击）读取，只在打开 B50 图时下载。
 
@@ -45,11 +47,13 @@ node otoge-dashboard/test/serve.mjs
 
 1. **更新 otoge-sync**（加了查分面板的只读来源）：Cloudflare → `otoge-sync` → Edit code，粘贴 `../otoge-sync/worker.js` 的全部内容 → Deploy。不需要新的变量。
    - 检查：`https://otoge-sync.131a562-index01.workers.dev/health` 仍然是 `"ok": true`
-2. 在 GitHub 新建一个**公开**仓库 `otoge-dashboard`，把本文件夹的内容推上去（不含数据，只有网页）。
+2. 在 GitHub 新建一个**公开**仓库 `sbga-dashboard`，把本文件夹的内容推上去（不含数据，只有网页）。本地文件夹还叫 `otoge-dashboard/`。
 3. 仓库 Settings → Pages → Source 选 `Deploy from a branch`，分支 `main`，目录 `/ (root)`。
-4. 一两分钟后打开 `https://131a562.github.io/otoge-dashboard/`。
+4. 一两分钟后打开 `https://131a562.github.io/sbga-dashboard/`。
 
-**以后每次更新**：先把 `index.html` 最后的 `src/app.js?v=11` 里的数字加 1，再把改过的文件和 `index.html` 一起上传。手机浏览器会长时间缓存脚本，刷新也不一定重新下载；版本号变了，脚本地址就变了，手机一定会下载新的。`app.js` 会把同样的版本号带给 `config.js`、`common.js`、`games.js`，这几个文件不用改。`index.html` 本身最多缓存 10 分钟。
+**从 otoge-dashboard 改名过来**（2026/10）：仓库 `otoge-dashboard` 在 Settings 里改名成 `sbga-dashboard`，网址随之变成 `…/sbga-dashboard/`。GitHub 会跳转仓库页面，但不会跳转 Pages 的网址，所以另外新建了一个公开仓库 `otoge-dashboard`，只放 `../otoge-dashboard-redirect/` 里的跳转页（同样开 Pages），把旧网址（连同 `?chunithm=…` 这些参数和 `#` 后面的部分）转到新网址，以前存的书签、主屏幕图标、分享出去的链接都还能用。浏览器里记住的名字等（`otoge-dash:` 开头）是按网站存的，新旧网址是同一个网站，所以不用重新填；同步服务只看网站、不看路径，也不用重新部署。
+
+**以后每次更新**：先把 `index.html` 最后的 `src/app.js?v=12` 里的数字加 1，再把改过的文件和 `index.html` 一起上传。手机浏览器会长时间缓存脚本，刷新也不一定重新下载；版本号变了，脚本地址就变了，手机一定会下载新的。`app.js` 会把同样的版本号带给 `config.js`、`common.js`、`games.js`，这几个文件不用改。`index.html` 本身最多缓存 10 分钟。
 
 Worker 只允许 `https://131a562.github.io` 这个来源读（`VIEWER_ORIGINS`），不允许写。用户名或域名不一样时，改 `../otoge-sync/worker.js` 里的 `VIEWER_ORIGINS` 再部署一次。
 
