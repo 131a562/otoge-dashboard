@@ -1,6 +1,7 @@
 // B50 图：用历史记录里的 Rating 快照（书签运行时记下的 B50）画图，不需要运行书签。
-// 三个游戏各自照搬原书签的 B50 图样式，分别写在 b50-chunithm.js / b50-maimai.js / b50-ongeki.js；
-// 这里只放共用的小工具（定数表、曲绘的读取，画图的辅助函数）和按游戏分派。
+// 三个游戏各一个文件：b50-chunithm.js / b50-maimai.js / b50-ongeki.js 把快照的行换成卡片的数据，
+// 再交给 draw-chunithm.js / draw-maimai.js / draw-ongeki.js 画（这三个是和书签共用的图片样式）。
+// 这里只放共用的小工具（定数表、曲绘的读取）和按游戏分派。
 // 定数、曲绘按快照里的曲目从公开的定数表查（只在打开 B50 图时下载，下载过就不再下载）。
 // 快照的行格式见各书签：
 //   CHUNITHM  [曲目id:难度, 曲名, 分数, 单曲 Rating×100, 标记]
@@ -22,19 +23,7 @@ export const loadJson = (urls) => {
   return dbCache.get(key);
 };
 
-// ---- 画图的辅助函数 ----
-export const FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN","PingFang SC","Noto Sans CJK JP","Yu Gothic","Meiryo","Microsoft YaHei",sans-serif';
-export function rrect(g, x, y, w, h, r) {
-  g.beginPath();
-  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
-  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
-}
-export function fit(g, text, maxW) {
-  if (g.measureText(text).width <= maxW) return text;
-  let t = text;
-  while (t.length > 1 && g.measureText(t + '…').width > maxW) t = t.slice(0, -1);
-  return t + '…';
-}
+// ---- 曲绘 ----
 // 曲绘：otoge-db / reiwa.f5.si 允许跨域，画进 canvas 后仍能导出；15 秒没加载完就当没有（显示 NO IMAGE）
 export const loadImg = (src) => new Promise((resolve) => {
   if (!src) return resolve(null);

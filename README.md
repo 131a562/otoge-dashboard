@@ -1,6 +1,6 @@
 # SBGA DASHBOARD（sbga-dashboard）
 
-网址：[https://131a562.github.io/sbga-dashboard/](https://131a562.github.io/sbga-dashboard/)（以前叫 otoge-dashboard / 音游查分面板，旧网址会自动跳到这里，见下面「部署」）
+网址：[https://131a562.github.io/sbga-dashboard/](https://131a562.github.io/sbga-dashboard/)（以前叫 otoge-dashboard / 音游查分面板，旧网址已停用，见下面「部署」）
 
 一个网页，填上同步名字就能看 CHUNITHM / maimai DX / オンゲキ 三个游戏的记录总览。数据来自三个查分书签（chuni-b50 / maimai-dx-score / ongeki-score-export）同步到私有仓库 `otoge-history` 的历史记录，经由 `otoge-sync` Worker **只读**取得。
 
@@ -16,7 +16,7 @@
 - **推分**：这段时间里最佳分数提高了的谱面，「之前的最佳 → 现在的最佳」，按提高的多少排序（中二 / 音击是分数，maimai 是达成率）。各谱面提高的分数不加总，标题行写这段时间账号 Rating 的变化（Rating 快照的实际值，和卡片上的相同）。这段时间里第一次打的谱面单独列出。以前没有记录过、第一次读到的就是游戏标了 NEW RECORD 的游玩的谱面（例如中二早期扫描没读到的 ULTIMA）也算新打的：第一次打一定是 NEW RECORD，而以前打过的谱面一般早就被扫描记下了。点一行打开这个谱面的记录（见下面）。
 - **谱面记录**：点推分列表里的一行，或者从 SBGA TOOL 卡片页「我的成绩」的「SBGA DASHBOARD 里的推分记录 →」跳过来时打开。显示最佳分数和灯（所有记录里最好的）、刷新最佳几次、记录到的游玩几次、最佳分数的变化（刷新过最佳时画阶梯线），以及每一条记录（时间、分数、灯、刷新最佳时提高了多少、来源是游玩还是成绩扫描；新的在上面，超过 20 条时其余的折叠）。只有起点之后书签运行时记到的成绩。最下面的「在 SBGA TOOL 看这个谱面」打开 SBGA TOOL 的曲目页（定数、容错、谱面确认），直接打开那个难度。打开时网址会带上这个谱面（`&game=chunithm&title=曲名&diff=3`，maimai 加 `&kind=DX` / `STD`，音击同名曲加 `&artist=艺术家`；难度写法同历史记录：中二 0〜4，maimai / 音击是难度名），复制下来就能直接打开这个谱面的记录；关闭时去掉。
 - **页头**：右上的「SBGA TOOL（曲目资料）」打开 SBGA TOOL。
-- **B50 图**：每张卡片下面的「查看 B50 图」按钮。用运行查分书签时记下的 B50（历史记录里带曲目列表的 Rating 快照）画图，三个游戏的样式都照搬各自书签原来的 B50 图：CHUNITHM（chuni-b50，深蓝紫渐变背景、难度颜色描边的卡片、右上 RATING / BEST 30 AVG / NEW 20 AVG，宽 1592px）、maimai DX（maimai-dx-score，顶部 DX Rating 和 BEST35 / NEW15 统计框，卡片上有 DX/STD、版本、FC/AP、FS/FDX、DX 星和 DX 分，宽 1800px）、オンゲキ（ongeki-score-export，左边 BEST50 + NEW10，右边一栏 P-SCORE50，宽 2242px）。快照的行里没有的数据从观测记录里按快照当时补上：maimai 的 FS/FDX 和 DX 分（成绩扫描和プレイ履歴里的最好值），音击的プラチナスコア和 ☆（成绩扫描）。和书签的图不同的地方：页脚写快照的时间（不是生成图片的时间），音击的副标题写各枠怎么加起来（面板没有当时读网页的游戏内 Rating）。窗口上方的「时间点」可以换成以前任意一次的 B50：书签每次运行、B50 有变化时会存一个快照，下拉框里列出这个游戏的全部快照（新的在上面，例如「2026/10/18 20:00 · 15.55」），默认是最新的；只能选运行过书签的时间点，开始记录之前的 B50 没有。下载的文件名带快照的日期和时刻（例如 chunithm-b50-INDEX.01-20261018-2000.png）。可以「下载图片」，iPhone / 安卓上还有「分享 / 存到相册」，也可以长按图片保存。不需要运行书签，也不依赖书签的代码；定数和曲绘从 otoge-db（中二、maimai）/ reiwa.f5.si（音击）读取，只在打开 B50 图时下载。
+- **B50 图**：每张卡片下面的「查看 B50 图」按钮。用运行查分书签时记下的 B50（历史记录里带曲目列表的 Rating 快照）画图，三个游戏的样式和各自书签的 B50 图是同一份代码（`src/draw-*.js`，书签运行时也从这里加载）：CHUNITHM（chuni-b50，深蓝紫渐变背景、难度颜色描边的卡片、右上 RATING / BEST 30 AVG / NEW 20 AVG，宽 1592px）、maimai DX（maimai-dx-score，顶部 DX Rating 和 BEST35 / NEW15 统计框，卡片上有 DX/STD、版本、FC/AP、FS/FDX、DX 星和 DX 分，宽 1800px）、オンゲキ（ongeki-score-export，左边 BEST50 + NEW10，右边一栏 P-SCORE50，宽 2242px）。快照的行里没有的数据从观测记录里按快照当时补上：maimai 的 FS/FDX 和 DX 分（成绩扫描和プレイ履歴里的最好值），音击的プラチナスコア和 ☆（成绩扫描）。和书签的图不同的地方：页脚写快照的时间（不是生成图片的时间），音击的副标题写各枠怎么加起来（面板没有当时读网页的游戏内 Rating）。窗口上方的「时间点」可以换成以前任意一次的 B50：书签每次运行、B50 有变化时会存一个快照，下拉框里列出这个游戏的全部快照（新的在上面，例如「2026/10/18 20:00 · 15.55」），默认是最新的；只能选运行过书签的时间点，开始记录之前的 B50 没有。下载的文件名带快照的日期和时刻（例如 chunithm-b50-INDEX.01-20261018-2000.png）。可以「下载图片」，iPhone / 安卓上还有「分享 / 存到相册」，也可以长按图片保存。不需要运行书签；定数和曲绘从 otoge-db（中二、maimai）/ reiwa.f5.si（音击）读取，只在打开 B50 图时下载。
 
 推分只比较每个谱面「时间段开始前的最佳」和「时间段结束时的最佳」，不做书签「历史走势」页那样逐次的推分判定、标记变化和账号 Rating 推算，所以不需要下载定数表。时间段早于第一次记录（起点）时，从起点那次的成绩扫描开始比较。
 
@@ -26,8 +26,10 @@
 - `src/app.js`：名字输入、读取、显示
 - `src/games.js`：三个游戏的记录格式 → 面板的数据（Rating、走势、游玩次数、推分谱面）
 - `src/b50.js`：B50 图的共用部分（定数表、曲绘的读取，按游戏分派）。定数表先读 SBGA TOOL 每天整理的 `https://131a562.github.io/sbga-tool/data/feed/…`（和三个书签同一份），读不到时退回 otoge-db / reiwa.f5.si
-- `src/b50-chunithm.js` / `src/b50-maimai.js` / `src/b50-ongeki.js`：三个游戏的 B50 图，各自照搬对应书签的样式（改书签的样式时这里也要跟着改）
-- `src/common.js`：共用工具（名字的统一写法、读取 otoge-sync）
+- `src/b50-chunithm.js` / `src/b50-maimai.js` / `src/b50-ongeki.js`：把快照的行换成卡片的数据、加载曲绘，交给下面的 `draw-*.js` 画
+- `src/draw-chunithm.js` / `src/draw-maimai.js` / `src/draw-ongeki.js` + `src/draw.js`：**三个游戏的图片样式，书签和面板共用这一份**。书签运行时从 `https://131a562.github.io/sbga-dashboard/src/` 加载（B50、定数筛选 / 查分图、历史走势图都用这里的底色、颜色、标签和卡片）。改样式只改这里，上传后书签和面板一起生效
+- `src/sync.js`：**三个书签读写 otoge-sync 的代码**（名字的统一写法、base64、读取 / 写入 / 合并，各书签只传自己的合并规则），书签运行时同样从这里加载。面板自己只读，不用它
+- `src/common.js`：共用工具（名字的统一写法、读取 otoge-sync）。`sync.js` 也用这里的 `cleanAccount`；SBGA TOOL 的「我的成绩」运行时加载这个文件，用 `cleanAccount` / `legacyAccount` / `fetchHist`
 - `src/config.js`：otoge-sync 和 SBGA TOOL 的地址
 - `test/serve.mjs` + `test/mock-data.mjs`：本地预览
 
@@ -51,9 +53,14 @@ node otoge-dashboard/test/serve.mjs
 3. 仓库 Settings → Pages → Source 选 `Deploy from a branch`，分支 `main`，目录 `/ (root)`。
 4. 一两分钟后打开 `https://131a562.github.io/sbga-dashboard/`。
 
-**从 otoge-dashboard 改名过来**（2026/10）：仓库 `otoge-dashboard` 在 Settings 里改名成 `sbga-dashboard`，网址随之变成 `…/sbga-dashboard/`。GitHub 会跳转仓库页面，但不会跳转 Pages 的网址，所以另外新建了一个公开仓库 `otoge-dashboard`，只放 `../otoge-dashboard-redirect/` 里的跳转页（同样开 Pages），把旧网址（连同 `?chunithm=…` 这些参数和 `#` 后面的部分）转到新网址，以前存的书签、主屏幕图标、分享出去的链接都还能用。浏览器里记住的名字等（`otoge-dash:` 开头）是按网站存的，新旧网址是同一个网站，所以不用重新填；同步服务只看网站、不看路径，也不用重新部署。
+**从 otoge-dashboard 改名过来**（2026/10）：仓库 `otoge-dashboard` 在 Settings 里改名成 `sbga-dashboard`，网址随之变成 `…/sbga-dashboard/`。GitHub 会跳转仓库页面，但不会跳转 Pages 的网址，旧网址 `…/otoge-dashboard/` 现在是 404。用户都已经换到新网址，所以不做跳转（`../otoge-dashboard-redirect/` 里的跳转页没有部署，也不需要了）。浏览器里记住的名字等（`otoge-dash:` 开头）是按网站存的，新旧网址是同一个网站，所以不用重新填；同步服务只看网站、不看路径，也不用重新部署。
 
-**以后每次更新**：先把 `index.html` 最后的 `src/app.js?v=12` 里的数字加 1，再把改过的文件和 `index.html` 一起上传。手机浏览器会长时间缓存脚本，刷新也不一定重新下载；版本号变了，脚本地址就变了，手机一定会下载新的。`app.js` 会把同样的版本号带给 `config.js`、`common.js`、`games.js`，这几个文件不用改。`index.html` 本身最多缓存 10 分钟。
+**以后每次更新**：先把 `index.html` 最后的 `src/app.js?v=13` 里的数字加 1，再把改过的文件和 `index.html` 一起上传。手机浏览器会长时间缓存脚本，刷新也不一定重新下载；版本号变了，脚本地址就变了，手机一定会下载新的。`app.js` 会把同样的版本号带给 `config.js`、`common.js`、`games.js`，这几个文件不用改。`index.html` 本身最多缓存 10 分钟。
+
+**`draw-*.js`、`draw.js`、`sync.js`、`common.js` 三个书签也在用**：书签每次运行都带 `?t=时间` 重新下载，所以上传后书签马上用新版。改这几个文件时要注意：
+- 不能改坏导出的名字和参数（书签按名字取用：`draw-chunithm.js` 的 `newCanvas` / `card` / `drawB50` 等，`draw-maimai.js` / `draw-ongeki.js` 的 `C` / `f` / `pill` / `drawImage` 等，`sync.js` 的 `createSync` / `cleanAccount` 等）。
+- 书签那边加新的用法时，**先上传面板，再上传书签**，否则书签会取到旧模块里没有的东西。
+- 这几个文件读不到时：中二书签画图会报错、同步提示失败（成绩照常读取）；maimai / 音击书签读完成绩后停下，提示「读不到 SBGA DASHBOARD 的 …」。
 
 Worker 只允许 `https://131a562.github.io` 这个来源读（`VIEWER_ORIGINS`），不允许写。用户名或域名不一样时，改 `../otoge-sync/worker.js` 里的 `VIEWER_ORIGINS` 再部署一次。
 
